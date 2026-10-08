@@ -18,3 +18,5 @@ installer-output/
 assets/*.ico
 assets/*.png
 assets/*.bmp
+
+previous-installer/

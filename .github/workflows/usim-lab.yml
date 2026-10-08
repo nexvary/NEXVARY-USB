@@ -52,6 +52,9 @@ jobs:
           path: ui-evidence/
           if-no-files-found: error
   windows-exe:
+    permissions:
+      contents: read
+      actions: read
     needs: test
     runs-on: windows-2022
     timeout-minutes: 25
@@ -69,6 +72,13 @@ jobs:
       - name: Compile installer
         shell: pwsh
         run: "& 'C:\\Program Files (x86)\\Inno Setup 6\\ISCC.exe' 'installer/NEXVARY-USB.iss'"
+      - name: Download previous 0.3.1 installer for actual upgrade verification
+        uses: actions/download-artifact@v4
+        with:
+          name: NEXVARY-USB-Studio-Windows-Installer
+          path: previous-installer/
+          run-id: 37854171067
+          github-token: ${{ github.token }}
       - name: Install, launch, upgrade, uninstall and settings preservation
         shell: pwsh
         run: ./scripts/windows_package_smoke.ps1

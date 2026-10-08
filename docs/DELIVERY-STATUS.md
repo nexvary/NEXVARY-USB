@@ -32,7 +32,7 @@ K3770 reported observations are retained as reported evidence, not re-measured.
 GUI verification creates screenshots from running Qt at four physical resolutions
 and three scale factors (72 page cases per operating system), plus synthetic
 multi-modem cards and Back navigation. Packaged Windows verification installs,
-starts the EXE and opens six pages, upgrades, removes the program, and verifies a
+starts the EXE and opens six pages, upgrades from the actual 0.3.1 installer, removes the program, and verifies a
 user-settings sentinel survived. Runner DPI simulation is not a physical monitor
 or GPU/driver test. No USB modem or SIM is attached to CI.
 

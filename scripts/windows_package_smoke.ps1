@@ -14,6 +14,10 @@ New-Item -ItemType Directory -Force -Path $settings | Out-Null
 $sentinel = Join-Path $settings 'ci-preserve-sentinel.txt'
 Set-Content -LiteralPath $sentinel -Value 'preserve-user-settings'
 $args = @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=$target",'/TASKS=')
+# Verify a real upgrade from the previously built 0.3.1 installer.
+$previous = (Resolve-Path 'previous-installer/NEXVARY-USB-Studio-Setup-v0.3.1.exe').Path
+$old = Start-Process -FilePath $previous -ArgumentList $args -Wait -PassThru
+if ($old.ExitCode -ne 0) { throw 'Previous-version install failed' }
 $process = Start-Process -FilePath $installer -ArgumentList $args -Wait -PassThru
 if ($process.ExitCode -ne 0) { throw 'Installer failed' }
 $exe = Join-Path $target 'NEXVARY-USB-Studio.exe'
@@ -38,4 +42,4 @@ if (!(Test-Path $sentinel)) { throw 'User settings removed' }
 Remove-Item $env:NEXVARY_PACKAGE_SMOKE
 Remove-Item $sentinel
 Remove-Item Env:NEXVARY_PACKAGE_SMOKE
-Write-Output 'Packaging PASS: install, packaged GUI, upgrade, uninstall, settings preserved'
+Write-Output 'Packaging PASS: 0.3.1 install, 0.4.0 upgrade, packaged GUI, repeat upgrade, uninstall, settings and file associations preserved'
