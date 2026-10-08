@@ -183,7 +183,7 @@ class Report:
     def public_dict(self) -> dict:
         return asdict(self)
 
-def probe(device: str, baudrate: int = 115200,
+def _probe_unlocked(device: str, baudrate: int = 115200,
           factory: Callable | None = None) -> Report:
     if not device or len(device) > 255 or "\x00" in device:
         raise LabError("Choose a valid serial port.")
@@ -199,7 +199,7 @@ def probe(device: str, baudrate: int = 115200,
     finally:
         transport.close()
     return Report(
-        product="NEXVARY USB-USIM Lab", version="0.1.2",
+        product="NEXVARY USB Studio", version=__import__("nexvary_usim_lab").__version__,
         timestamp_utc=datetime.now(timezone.utc).isoformat(timespec="seconds"),
         device=redact(device), simulated=False, readings=results)
 
@@ -247,8 +247,8 @@ def to_csv(report: Report) -> str:
     writer = csv.writer(output)
     writer.writerow(("device", "simulated", "name", "status", "value", "note"))
     for reading in report.readings:
-        writer.writerow((report.device, report.simulated, reading.name, reading.status,
-                         reading.value, reading.note))
+        writer.writerow(tuple(('\'' + str(v)) if str(v).startswith(('=', '+', '-', '@')) else v
+                              for v in (report.device, report.simulated, reading.name, reading.status,reading.value, reading.note)))
     return output.getvalue()
 
 # Strict, volatile ISO 7816 SELECT MF allow-list (not arbitrary APDU).
@@ -319,7 +319,7 @@ def _fixed_select_once(transport, apdu: str, duration: float = 5) -> str:
                 raise LabError("Unsolicited modem traffic exceeded APDU budget.")
     raise LabError("No complete APDU reply within five seconds.")
 
-def select_master_file(device: str, baudrate: int = 115200,
+def _select_master_file_unlocked(device: str, baudrate: int = 115200,
                        factory: Callable | None = None) -> Reading:
     """Owner-consented SELECT MF. On 6A86 alone, retry safe fixed variants.
 
@@ -357,3 +357,14 @@ def select_master_file(device: str, baudrate: int = 115200,
     finally:
         transport.close()
 
+
+
+def probe(device, baudrate=115200, factory=None):
+    from .coordination import lease
+    with lease(device):
+        return _probe_unlocked(device, baudrate, factory)
+
+def select_master_file(device, baudrate=115200, factory=None):
+    from .coordination import lease
+    with lease(device):
+        return _select_master_file_unlocked(device, baudrate, factory)

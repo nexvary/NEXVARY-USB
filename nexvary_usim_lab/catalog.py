@@ -60,3 +60,20 @@ def identification_hint(description: str, manufacturer: str, vid: str) -> str:
     if vid == "19D2":
         return "ZTE-family USB VID; exact model unknown"
     return "Unidentified serial device; may not be a cellular modem"
+
+def load_profiles(extra_directory=None):
+    """Read declarative evidence files; no executable plugin imports."""
+    import json
+    from pathlib import Path
+    directories=[Path(__file__).with_name('profiles')]
+    if extra_directory: directories.append(Path(extra_directory))
+    profiles={}
+    for directory in directories:
+        for path in sorted(directory.glob('*.json'))[:100]:
+            if path.stat().st_size>65536: continue
+            try:
+                data=json.loads(path.read_text(encoding='utf-8'))
+                if data.get('schema_version')==1 and isinstance(data.get('model'),str) and isinstance(data.get('vendor'),str):
+                    profiles[data['vendor']+' '+data['model']]=data
+            except (ValueError,OSError,AttributeError): continue
+    return profiles

@@ -6,8 +6,9 @@ serialized or written to diagnostics.
 """
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 import json
+import hashlib
 import platform
 import re
 import subprocess
@@ -26,20 +27,39 @@ _AT_CLASS = {"Ports", "Modem"}
 # Never execute shell interpolated inputs. This query sends nothing to hardware.
 _PNP_QUERY = r"""
 $ErrorActionPreference = 'Stop'
+[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 $all = @(Get-PnpDevice -PresentOnly -ErrorAction Stop | Where-Object {
     $id = [string]$_.InstanceId
     $name = [string]$_.FriendlyName
     ($id -match 'VID_(12D1|19D2)') -or
     ($name -match 'Huawei|Vodafone|ZTE|Mobile Broadband|HSUPA|HSPA|Data Card')
 } | ForEach-Object {
+    $props = @(Get-PnpDeviceProperty -InstanceId $_.InstanceId -ErrorAction SilentlyContinue)
+    $container = ($props | Where-Object KeyName -eq 'DEVPKEY_Device_ContainerId').Data
+    $parent = ($props | Where-Object KeyName -eq 'DEVPKEY_Device_Parent').Data
+    $driver = ($props | Where-Object KeyName -eq 'DEVPKEY_Device_DriverVersion').Data
+    $ancestors = @()
+    $cursor = [string]$parent
+    for ($depth=0; $depth -lt 12 -and $cursor; $depth++) {
+        $ancestors += $cursor
+        $cursor = [string](Get-PnpDeviceProperty -InstanceId $cursor -KeyName 'DEVPKEY_Device_Parent' -ErrorAction SilentlyContinue).Data
+    }
+    $com = ''
+    $reg = 'Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Enum\' + $_.InstanceId + '\Device Parameters'
+    $com = [string](Get-ItemProperty -LiteralPath $reg -Name PortName -ErrorAction SilentlyContinue).PortName
     [PSCustomObject]@{
         Name = [string]$_.FriendlyName
         Class = [string]$_.Class
         Status = [string]$_.Status
         InstanceId = [string]$_.InstanceId
+        ContainerId = [string]$container
+        Parent = [string]$parent
+        Ancestors = @($ancestors)
+        ComPort = $com
+        DriverVersion = [string]$driver
     }
 })
-ConvertTo-Json -InputObject $all -Compress -Depth 3
+ConvertTo-Json -InputObject $all -Compress -Depth 5
 """
 
 @dataclass(frozen=True)
@@ -52,6 +72,14 @@ class UsbDevice:
     mode: str
     com_port: str
     advice: str
+    identity: str = field(default='', repr=False)
+    container: str = field(default='', repr=False)
+    ancestors: tuple[str, ...] = field(default=(), repr=False)
+    driver: str = ''
+
+    def public_dict(self):
+        return {key: value for key, value in asdict(self).items()
+                if key not in ('identity', 'container', 'ancestors')}
 
 @dataclass(frozen=True)
 class Inventory:
@@ -62,7 +90,9 @@ class Inventory:
     diagnostic: str
     # Exportable and privacy safe: no IMEI, IMSI, full PnP IDs or phone numbers.
     def public_dict(self) -> dict:
-        return asdict(self)
+        return dict(status=self.status, devices=[d.public_dict() for d in self.devices],
+                    serial_ports=[asdict(p) for p in self.serial_ports], message=self.message,
+                    diagnostic=self.diagnostic)
 
 def _clean(value: object, max_len: int = 110) -> str:
     return redact(str(value if value is not None else ""))[:max_len]
@@ -91,7 +121,7 @@ def _parse_windows(text: str) -> list[UsbDevice]:
         family = "Huawei" if vid == "12D1" else "ZTE" if vid == "19D2" else "Huawei / ZTE / Vodafone (غير مؤكد)"
         kind = _clean(obj.get("Class", ""), 40)
         status = _clean(obj.get("Status", "Unknown"), 30)
-        com = _COM.search(name)
+        com = _COM.search(str(obj.get("ComPort", ""))) or _COM.search(name)
         port = com.group().upper() if com else ""
         if status.lower() not in ("ok", "unknown", ""):
             mode, advice = "DRIVER_PROBLEM", "Windows أبلغ عن مشكلة؛ افتح Device Manager وافحص تعريف الجهاز."
@@ -104,8 +134,11 @@ def _parse_windows(text: str) -> list[UsbDevice]:
         result.append(UsbDevice(
             name=name, family=family, usb_id=f"{vid or '????'}:{product or '????'}",
             device_class=kind or "Unknown", os_status=status or "Unknown",
-            mode=mode, com_port=port, advice=advice))
-    # A modem can legitimately expose multiple USB interfaces; keep each visible.
+            mode=mode, com_port=port, advice=advice,
+            identity=raw_id.casefold(), container=str(obj.get('ContainerId', '')).casefold(),
+            ancestors=tuple(str(x).casefold() for x in (obj.get('Ancestors') or [obj.get('Parent', '')]) if x),
+            driver=_clean(obj.get('DriverVersion', ''), 40)))
+    # Keep technical interfaces for advanced details; grouping is separate.
     return result[:100]
 
 def detect(platform_name: str | None = None, runner: Callable | None = None,

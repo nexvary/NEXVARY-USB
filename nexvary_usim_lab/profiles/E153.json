@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "vendor": "Huawei",
+  "model": "E153",
+  "usb_ids": [],
+  "firmware": [],
+  "driver": null,
+  "available_interfaces": [],
+  "supported_commands": [],
+  "apdu_result": null,
+  "sim_usim_capability": "unverified",
+  "known_limitations": [
+    "Exact USB ID does not uniquely identify model",
+    "AKA / Arabic SMS / data connection not hardware verified"
+  ],
+  "last_verified_evidence": {
+    "source": "physical label photograph",
+    "date": "2026-10-08",
+    "classification": "reported physical evidence; not re-tested here"
+  }
+}

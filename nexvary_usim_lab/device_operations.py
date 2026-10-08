@@ -12,6 +12,7 @@ import time
 from typing import Callable
 
 from .core import LabError, Reading, _open_serial, redact
+from .coordination import lease
 
 ICCID_FILE = "AT+CRSM=176,12258,0,0,10"
 _IMSI_PATTERN = re.compile(r"(?<!\d)\d{12,22}(?!\d)")
@@ -51,15 +52,25 @@ class ATSession:
         self._factory = factory or _open_serial
         self._speed = speed
         self._wire = None
+        self.events = []
 
     def __enter__(self):
-        self._wire = self._factory(self.port, self._speed)
+        self._lease = lease(self.port)
+        self._lease.__enter__()
+        try:
+            self._wire = self._factory(self.port, self._speed)
+        except Exception:
+            self._lease.__exit__(None, None, None)
+            raise
         return self
 
     def __exit__(self, exc_type, exc, tb):
-        if self._wire is not None:
-            self._wire.close()
-            self._wire = None
+        try:
+            if self._wire is not None:
+                self._wire.close()
+                self._wire = None
+        finally:
+            self._lease.__exit__(exc_type, exc, tb)
 
     def _write(self, bytes_: bytes):
         if self._wire is None:
@@ -67,7 +78,7 @@ class ATSession:
         self._wire.write(bytes_)
         self._wire.flush()
 
-    def _read(self, duration: float = 5, limit: int = 32768, prompt: bool = False) -> tuple[str,list[str]]:
+    def _read(self, duration: float = 5, limit: int = 32768, prompt: bool = False, expected: str | None = None) -> tuple[str,list[str]]:
         deadline = time.monotonic() + duration
         lines = []
         total = 0
@@ -87,6 +98,11 @@ class ATSession:
                 return "OK", lines
             if line == "ERROR" or line.startswith(("+CME ERROR", "+CMS ERROR")):
                 return "ERROR", lines
+            unsolicited = line.startswith(('^', '%', '+CMTI:', '+CMT:', '+CDS:', '+CREG:', '+CGREG:', '+CEREG:', '+CSSU:'))
+            if unsolicited and not (expected and line.startswith(expected)):
+                if len(self.events) < 64:
+                    self.events.append('UNSOLICITED')  # no raw event content retained
+                continue
             lines.append(line[:400])
             if len(lines) > 200:
                 raise LabError("Unbounded modem traffic.")
@@ -97,7 +113,8 @@ class ATSession:
             raise LabError("AT command contains control characters.")
         self._wire.reset_input_buffer()
         self._write((command+"\r").encode("ascii"))
-        return self._read(duration, prompt=prompt)
+        expected = command.split("?")[0].split("=")[0][2:] + ":" if command.startswith("AT+") else None
+        return self._read(duration, prompt=prompt, expected=expected)
 
     def sim_file_check(self) -> Reading:
         state, _ = self._command("AT", 3)
@@ -186,3 +203,57 @@ class ATSession:
         if not matched:
             raise LabError("Modem returned OK without SMS reference; delivery is unverified.")
         return f"SMS submitted to modem (reference {matched.group(1)}); delivery not guaranteed."
+
+    def send_ucs2_sms(self, number, body, confirmed=False, experimental_consent=False):
+        from .sms import ucs2_submit
+        if not confirmed or not experimental_consent:
+            raise LabError('إرسال UCS2 يحتاج موافقة صريحة على اختبار غير مثبت على هذا المودم.')
+        pdu, length = ucs2_submit(number, body)
+        # Preserve and restore the SMS mode even after submission failure.
+        state, lines = self._command('AT+CMGF?', 4)
+        match = next((re.fullmatch(r'\+CMGF:\s*([01])', x) for x in lines if x.startswith('+CMGF:')), None)
+        if state != 'OK' or not match:
+            raise LabError('لا يمكن حفظ وضع الرسائل الحالي؛ لم نرسل شيئًا.')
+        original = match.group(1)
+        try:
+            state, _ = self._command('AT+CMGF=0', 4)
+            if state != 'OK': raise LabError('المودم رفض وضع SMS PDU.')
+            state, _ = self._command(f'AT+CMGS={length}', 10, prompt=True)
+            if state != 'PROMPT': raise LabError('لم يظهر طلب إدخال SMS؛ لم نرسل شيئًا.')
+            self._write(pdu.encode('ascii') + b'\x1a')
+            state, lines = self._read(35)
+            ref = next((re.fullmatch(r'\+CMGS:\s*(\d+)', x) for x in lines if x.startswith('+CMGS:')), None)
+            if state != 'OK' or not ref:
+                raise LabError('نتيجة إرسال UCS2 غير مؤكدة؛ افحص صندوق الرسائل قبل إعادة الإرسال.')
+            return f'أُرسلت للمودم، المرجع {ref.group(1)}؛ التسليم ودعم الجهاز لم يُثبتا.'
+        finally:
+            restore, _ = self._command('AT+CMGF=' + original, 4)
+            if restore != 'OK':
+                raise LabError('تعذر استعادة وضع الرسائل؛ نتيجة الإرسال قد تكون غير مؤكدة. لا تعاود الإرسال تلقائيًا.')
+
+    def network_info(self):
+        rows=[]
+        for name, command in (('الإشارة','AT+CSQ'),('التسجيل','AT+CREG?'),
+                              ('تسجيل البيانات','AT+CGREG?'),('المشغل','AT+COPS?'),
+                              ('إعدادات APN','AT+CGDCONT?'),('حالة البيانات','AT+CGACT?')):
+            state, lines=self._command(command,5)
+            prefix=command.split('?')[0][2:]+':'
+            values=[redact(x) for x in lines if x.startswith(prefix)]
+            rows.append(Reading(name,state,' | '.join(values) or 'لم تتوفر بيانات','استعلام قراءة فقط؛ لا يغيّر الاتصال'))
+        return rows
+
+    def set_apn(self, cid, apn, confirmed=False):
+        if not confirmed: raise LabError('تغيير APN يحتاج موافقة صريحة.')
+        if type(cid) is not int or not 1<=cid<=16 or not isinstance(apn,str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9.-]{0,99}',apn):
+            raise LabError('قيمة APN أو السياق غير صحيحة.')
+        state, lines=self._command('AT+CGACT?',4)
+        active={int(m.group(1)):int(m.group(2)) for x in lines if (m:=re.fullmatch(r'\+CGACT:\s*(\d+)\s*,\s*([01])',x))}
+        if state!='OK' or cid not in active or active[cid]:
+            raise LabError('يجب إثبات أن سياق البيانات غير نشط قبل تعديل APN.')
+        state,_=self._command(f'AT+CGDCONT={cid},"IP","{apn}"',5)
+        if state!='OK': raise LabError('لم يؤكد المودم تغيير APN؛ أعد قراءة الإعدادات.')
+        state,lines=self._command('AT+CGDCONT?',5)
+        pattern=rf'^\+CGDCONT:\s*{cid},\s*"IP",\s*"{re.escape(apn)}"(?:,|$)'
+        if state!='OK' or not any(re.search(pattern,x) for x in lines):
+            raise LabError('تغيير APN غير مثبت بالقراءة اللاحقة.')
+        return 'تم تأكيد APN بالقراءة اللاحقة؛ لم يُشغّل اتصال بيانات.'

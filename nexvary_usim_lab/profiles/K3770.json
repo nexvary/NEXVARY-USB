@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "vendor": "Huawei",
+  "model": "K3770",
+  "usb_ids": [
+    "12D1:14C9"
+  ],
+  "firmware": [
+    "21.023.04.00.11"
+  ],
+  "driver": null,
+  "available_interfaces": [
+    "Diagnostics COM6",
+    "Secondary Modem COM7",
+    "Vodafone interfaces"
+  ],
+  "supported_commands": [
+    "AT",
+    "AT+CGMI",
+    "AT+CGMM",
+    "AT+CGMR",
+    "AT+CPIN?"
+  ],
+  "apdu_result": "6A86 observed on original SELECT MF",
+  "sim_usim_capability": "SIM READY; USIM AKA unverified",
+  "known_limitations": [
+    "Exact USB ID does not uniquely identify model",
+    "AKA / Arabic SMS / data connection not hardware verified"
+  ],
+  "last_verified_evidence": {
+    "source": "owner-provided observation",
+    "date": "2026-10-08",
+    "classification": "reported physical evidence; not re-tested here"
+  }
+}
