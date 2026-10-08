@@ -1,0 +1,34 @@
+#define MyAppName "NEXVARY USB Studio"
+#define MyAppVersion "0.3.0"
+#define MyAppPublisher "NEXVARY"
+#define MyAppExeName "NEXVARY-USB-Studio.exe"
+[Setup]
+AppId={{C7CE63D3-2B3C-4C64-9865-9B8092CC12CE}
+AppName={#MyAppName}
+AppVersion={#MyAppVersion}
+AppPublisher={#MyAppPublisher}
+DefaultDirName={autopf}\NEXVARY USB Studio
+DefaultGroupName=NEXVARY USB Studio
+UninstallDisplayIcon={app}\{#MyAppExeName}
+SetupIconFile=assets\nexvary-usb.ico
+OutputDir=installer-output
+OutputBaseFilename=NEXVARY-USB-Studio-Setup-v{#MyAppVersion}
+Compression=lzma2
+SolidCompression=yes
+WizardStyle=modern
+PrivilegesRequired=admin
+ArchitecturesAllowed=x64compatible
+ArchitecturesInstallIn64BitMode=x64compatible
+DisableProgramGroupPage=yes
+VersionInfoVersion=0.3.0.0
+VersionInfoCompany=NEXVARY
+VersionInfoDescription=NEXVARY USB modem and USIM management workstation
+[Files]
+Source: "dist\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+[Icons]
+Name: "{autoprograms}\NEXVARY USB Studio"; Filename: "{app}\{#MyAppExeName}"
+Name: "{autodesktop}\NEXVARY USB Studio"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+[Tasks]
+Name: "desktopicon"; Description: "Create Desktop shortcut"; GroupDescription: "Additional shortcuts:"
+[Run]
+Filename: "{app}\{#MyAppExeName}"; Description: "Launch NEXVARY USB Studio"; Flags: nowait postinstall skipifsilent
