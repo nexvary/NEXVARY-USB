@@ -6,6 +6,7 @@ import os,sys,json,time
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QFont,QFontMetrics,QFontDatabase
 from PySide6.QtWidgets import QApplication,QPushButton
 from PySide6.QtTest import QTest
 from nexvary_usim_lab.gui import Workstation
@@ -15,6 +16,8 @@ from nexvary_usim_lab.grouping import group_devices
 out=Path(os.environ.get('NEXVARY_UI_OUTPUT','ui-evidence'));out.mkdir(parents=True,exist_ok=True)
 scale=float(os.environ.get('QT_SCALE_FACTOR','1'))
 app=QApplication([]);ui=Workstation(auto_refresh=False)
+assert QFontMetrics(QFont('Noto Sans Arabic')).inFontUcs4(ord('م')), 'Arabic font glyph missing'
+assert QFontMetrics(QFont('Noto Sans')).inFontUcs4(ord('N')), 'Latin font glyph missing'
 ui.display_inventory(Inventory('NOT_DETECTED',[],[],'لا جهاز متصل في بيئة الاختبار','OK'))
 ui.show();app.processEvents();checks=[]
 for physical_w,physical_h in [(1024,768),(1280,720),(1366,768),(1920,1080)]:

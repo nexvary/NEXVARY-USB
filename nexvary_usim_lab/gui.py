@@ -5,7 +5,7 @@ import queue
 import threading
 from pathlib import Path
 from PySide6.QtCore import Qt, QTimer, QSize, QByteArray
-from PySide6.QtGui import QIcon, QPixmap, QPainter, QColor
+from PySide6.QtGui import QIcon, QPixmap, QPainter, QColor, QFontDatabase, QFont
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
     QHBoxLayout, QGridLayout, QLabel, QPushButton, QFrame, QScrollArea,
@@ -35,6 +35,14 @@ PATHS={
  'refresh':'<path d="M28 12a12 12 0 1 0 0 14M28 3v10H18"/>',
  'details':'<path d="M5 8h27M5 18h27M5 28h27"/><circle cx="12" cy="8" r="3"/><circle cx="24" cy="18" r="3"/><circle cx="15" cy="28" r="3"/>',
 }
+
+def load_fonts():
+    # Bundle fonts for native Windows, clean/offscreen runners and portable builds.
+    directory=Path(__file__).resolve().parent.parent/'assets'/'fonts'
+    for path in directory.glob('*.ttf'):
+        if QFontDatabase.addApplicationFont(str(path))<0:
+            raise RuntimeError('Bundled font failed to load: '+path.name)
+    QApplication.instance().setFont(QFont('Noto Sans Arabic',10))
 
 def icon(kind, color=BLUE):
     svg=f'<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36"><g fill="none" stroke="{color}" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">{PATHS.get(kind,PATHS["about"])}</g></svg>'
@@ -81,7 +89,7 @@ def rows(t,data):
     t.resizeRowsToContents()
 
 STYLE='''
-QWidget { background:#0C1319; color:#ECF1F6; font-family:"Segoe UI","Noto Sans Arabic","DejaVu Sans"; font-size:13px; }
+QWidget { background:#0C1319; color:#ECF1F6; font-family:"Noto Sans Arabic","Noto Sans","Segoe UI"; font-size:13px; }
 QFrame#panel { background:#15232E; border:1px solid #344959; border-radius:12px; }
 QFrame#panel QLabel, QFrame#panel QCheckBox { background:transparent; }
 QLabel#title { font-size:23px; font-weight:600; color:#F1F5F9; }
@@ -104,6 +112,7 @@ QToolTip { color:#ECF1F6; background:#253D4D; border:1px solid #71808C; }
 class Workstation(QMainWindow):
     def __init__(self, auto_refresh=True):
         super().__init__()
+        load_fonts()
         self.setWindowTitle(f'NEXVARY USB Studio {__version__}')
         self.setWindowIcon(icon('devices',GOLD));self.setLayoutDirection(Qt.RightToLeft)
         self.resize(1180,760);self.setMinimumSize(540,400);self.setStyleSheet(STYLE)

@@ -17,3 +17,7 @@ Pillow is a build-only artwork dependency and is not imported by the application
 
 The seven reference gateway/SIM projects listed in docs/THIRD-PARTY-REVIEW.md
 are not bundled or linked. No upstream APDU/AKA implementation was copied.
+
+Noto Sans / Noto Sans Arabic fonts: SIL Open Font License 1.1.
+Copyright Noto Project Authors. https://github.com/notofonts/noto-fonts
+The unmodified bundled fonts are covered by licenses/Noto-OFL.txt.
