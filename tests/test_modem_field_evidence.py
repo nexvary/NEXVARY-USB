@@ -16,7 +16,7 @@ class VodafoneK3770(DemoSerial):
         "AT+CSQ": ('+CREG: 1,"A10F","007ED1C5"', "+CSQ: 18,0", "OK"),
         "AT+CSIM=?": ("OK",),
         "AT+CRSM=?": ("OK",),
-        'AT+CSIM=14,"00A40000023F00"': ('+CMTI: "SM",3', '+CSIM: 4,"9000"', 'OK')
+        'AT+CSIM=14,"00A4000C023F00"': ('+CMTI: "SM",3', '+CSIM: 4,"9000"', 'OK')
     })
 
 class NoisyPortTests(unittest.TestCase):

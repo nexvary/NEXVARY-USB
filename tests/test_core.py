@@ -57,20 +57,24 @@ class CoreTests(unittest.TestCase):
         state, _ = _one_query(NoReply("COM1", 115200), "AT", deadline_seconds=0.2)
         self.assertEqual("TIMEOUT", state)
 
-    def test_explicit_fixed_select_mf_and_redacted_status(self):
+    def test_fixed_select_mf_uicc_no_fcp(self):
         class SelectModem(DemoSerial):
             ANSWERS = dict(DemoSerial.ANSWERS, **{
-                'AT+CSIM=14,"00A40000023F00"': ('+CSIM: 4,"9000"', 'OK')})
+                'AT+CSIM=14,"00A4000C023F00"': ('+CSIM: 4,"9000"', 'OK')})
         result = select_master_file("COM5", factory=SelectModem)
         self.assertEqual("ACCEPTED", result.status)
         self.assertEqual("SW=9000", result.value)
-        with self.assertRaises(LabError):
-            select_master_file("COM5", factory=DemoSerial)
+        self.assertIn("UICC_NO_FCP", result.note)
+
+    def test_invalid_result_length_is_rejected(self):
         class BadReply(DemoSerial):
             ANSWERS = dict(DemoSerial.ANSWERS, **{
-                'AT+CSIM=14,"00A40000023F00"': ('+CSIM: 6,"9000"', 'OK')})
+                'AT+CSIM=14,"00A4000C023F00"': ('+CSIM: 6,"9000"', 'OK')})
         with self.assertRaises(LabError):
             select_master_file("COM5", factory=BadReply)
+    def test_missing_reply_is_not_success(self):
+        with self.assertRaises(LabError):
+            select_master_file("COM5", factory=DemoSerial)
 
     def test_pcsc_optional_is_non_mutating(self):
         with patch.dict("sys.modules", {"smartcard": None}):

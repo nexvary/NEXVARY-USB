@@ -251,17 +251,80 @@ def to_csv(report: Report) -> str:
                          reading.value, reading.note))
     return output.getvalue()
 
-# One fixed, non-persistent ISO 7816 SELECT MF (3F00). No generic APDU API.
-_SELECT_MF_COMMAND = 'AT+CSIM=14,"00A40000023F00"'
-_CSIM_LINE = re.compile(r'^\+CSIM:\s*(\d+)\s*,\s*"?([0-9A-Fa-f]+)"?\s*')
+# Strict, volatile ISO 7816 SELECT MF allow-list (not arbitrary APDU).
+# UICC cards may require P2=0C (no FCP) or P2=04 (FCP), whereas
+# legacy GSM SIM may require CLA A0. Never send PIN or AUTHENTICATE here.
+_SELECT_MF_VARIANTS = (
+    ("UICC_NO_FCP", "00A4000C023F00"),
+    ("UICC_FCP", "00A40004023F00"),
+    ("UICC_DEFAULT", "00A40000023F00"),
+    ("GSM_LEGACY", "A0A40000023F00"),
+)
+_CSIM_LINE = re.compile(r'^\+CSIM:\s*(\d+)\s*,\s*"?([0-9A-Fa-f]+)"?\s*$')
+_SW_MEANINGS = {
+    "9000": "تم اختيار الملف بنجاح",
+    "6A86": "معاملات P1/P2 غير مقبولة",
+    "6A82": "الملف غير موجود",
+    "6D00": "الأمر غير مدعوم",
+    "6E00": "صنف الأمر CLA غير مدعوم",
+    "6982": "شروط أمان البطاقة لم تتحقق",
+    "6700": "طول أمر APDU غير صحيح",
+}
+
+def _sw_meaning(sw: str) -> str:
+    if sw in _SW_MEANINGS:
+        return _SW_MEANINGS[sw]
+    if sw.startswith(("61", "9F")):
+        return "أُتيح رد إضافي من البطاقة ولم نقرأه"
+    if sw.startswith(("62", "63")):
+        return "رمز تحذيري من البطاقة"
+    return "رمز حالة البطاقة لا يثبت المصادقة"
+
+def _fixed_select_once(transport, apdu: str, duration: float = 5) -> str:
+    if apdu not in {code for _,code in _SELECT_MF_VARIANTS}:
+        raise LabError("APDU not in read-only SELECT allow-list.")
+    command = f'AT+CSIM={len(apdu)},"{apdu}"'
+    transport.reset_input_buffer()
+    transport.write((command + "\r").encode("ascii"))
+    transport.flush()
+    deadline = time.monotonic() + duration
+    sw = None
+    total = 0
+    noise = 0
+    while time.monotonic() < deadline:
+        chunk = transport.readline()
+        if not chunk:
+            continue
+        total += len(chunk)
+        if total > 8192:
+            raise LabError("Excess modem APDU output.")
+        line = chunk.decode("ascii", errors="replace").strip()
+        if not line or line == command:
+            continue
+        m = _CSIM_LINE.fullmatch(line)
+        if m:
+            value = m.group(2).upper()
+            if int(m.group(1)) != len(value) or len(value) < 4 or len(value) % 2:
+                raise LabError("Malformed APDU result length.")
+            sw = value[-4:]
+        elif line == "OK":
+            if sw is None:
+                raise LabError("Modem omitted the card status.")
+            return sw
+        elif line == "ERROR" or line.startswith(("+CME ERROR", "+CMS ERROR")):
+            raise LabError("Modem rejected the SELECT command.")
+        else:
+            noise += 1
+            if noise > 200:
+                raise LabError("Unsolicited modem traffic exceeded APDU budget.")
+    raise LabError("No complete APDU reply within five seconds.")
 
 def select_master_file(device: str, baudrate: int = 115200,
                        factory: Callable | None = None) -> Reading:
-    """Optional on-card APDU transport evidence. This cannot verify USIM AKA.
+    """Owner-consented SELECT MF. On 6A86 alone, retry safe fixed variants.
 
-    Caller must obtain local card owner's consent. The APDU changes only the
-    current selected file; no UPDATE, VERIFY, AUTHENTICATE or PIN is issued.
-    Do not expose this over HTTP or include raw card response in any report.
+    A 6A86 from K3770 means bad P1/P2 selection in card context. A status
+    word is evidence of transport only, not USIM AKA, ePDG or IMS.
     """
     if not device or len(device) > 255 or "\x00" in device:
         raise LabError("Choose a valid serial port.")
@@ -272,39 +335,25 @@ def select_master_file(device: str, baudrate: int = 115200,
         state, _ = _one_query(transport, "AT")
         if state != "OK":
             raise LabError("Modem AT channel is not ready.")
-        try:
-            transport.reset_input_buffer()
-            transport.write((_SELECT_MF_COMMAND + "\r").encode("ascii"))
-            transport.flush()
-            deadline = time.monotonic() + 5.0
-            response_status = None
-            total = 0
-            while time.monotonic() < deadline:
-                raw = transport.readline()
-                total += len(raw)
-                if total > 4096:
-                    raise LabError("Modem APDU reply exceeded the allowed size.")
-                line = raw.decode("ascii", errors="replace").strip()
-                if not line or line == _SELECT_MF_COMMAND:
-                    continue
-                match = _CSIM_LINE.fullmatch(line)
-                if match is not None:
-                    hex_result = match.group(2).upper()
-                    if int(match.group(1)) != len(hex_result) or len(hex_result) < 4 or len(hex_result) % 2:
-                        raise LabError("Malformed APDU result length.")
-                    response_status = hex_result[-4:]
-                elif line == "OK":
-                    if response_status is None:
-                        raise LabError("Modem omitted the APDU card response.")
-                    result = "ACCEPTED" if response_status == "9000" else "CARD_STATUS"
-                    return Reading("APDU SELECT MF", result, "SW=" + response_status,
-                                   "An APDU reply does not verify AKA or ISIM access")
-                elif line == "ERROR" or line.startswith(("+CME ERROR", "+CMS ERROR")):
-                    raise LabError("Modem refused the fixed APDU.")
-            raise LabError("No complete APDU reply within five seconds.")
-        except LabError:
-            raise
-        except Exception:
-            raise LabError("APDU serial transport unavailable.") from None
+        sw = ""
+        attempt_count = 0
+        last_profile = ""
+        for last_profile, apdu in _SELECT_MF_VARIANTS:
+            attempt_count += 1
+            try:
+                sw = _fixed_select_once(transport, apdu)
+            except LabError:
+                raise
+            except Exception:
+                raise LabError("APDU transport unavailable.") from None
+            if sw == "9000" or sw.startswith(("61", "9F")):
+                return Reading("APDU SELECT MF", "ACCEPTED", "SW=" + sw,
+                               last_profile + ": " + _sw_meaning(sw) + ". لا يثبت AKA.")
+            if sw != "6A86":
+                break
+        return Reading("APDU SELECT MF", "CARD_STATUS", "SW=" + sw,
+                       last_profile + ": " + _sw_meaning(sw) +
+                       f". عدد صيغ الاختيار المجربة: {attempt_count}. لا يثبت AKA.")
     finally:
         transport.close()
+

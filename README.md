@@ -127,3 +127,11 @@ Five RTL desktop areas: modem/USB devices, SIM and APDU, SMS, redacted reports, 
 ## Not yet achieved
 
 A generalized USIM/ISIM APDU abstraction, authenticated SIM AKA backend, secure bridge to NEXVARY-WiFi-Call, EAP-AKA/IPsec SWu/ePDG, IMS registration, actual carrier Wi-Fi calls, and Arabic UCS2 SMS. Operator privileges and service entitlement cannot be assumed from an older 3G modem. Refer to `docs/DELIVERY-STATUS.md` before claiming production readiness.
+
+## K3770 real SELECT MF status 6A86
+
+The physical K3770 returned SW=6A86 for the original SELECT P2=00. The
+application now tests a fixed allow-list of MF SELECT variants with P2=0C,
+P2=04, P2=00, and legacy GSM CLA A0. It only retries after 6A86, does not
+export card response data, and never sends PIN, UPDATE or AUTHENTICATE.
+A card SELECT SW=9000 or 61xx/9Fxx is not USIM AKA success.

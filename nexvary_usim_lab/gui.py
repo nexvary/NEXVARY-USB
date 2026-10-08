@@ -397,7 +397,7 @@ class Workstation:
             return
         def finish(r):
             self.sim_table.insert("","end",values=(r.status,r.value,r.name))
-            self.card_var.set(f"APDU: {r.status} — {r.value}; لا يثبت AKA")
+            self.card_var.set(f"APDU: {r.status} — {r.value}; {r.note}")
             self.show("sim")
         self._job("اختبار APDU",lambda:select_master_file(port),finish)
 
