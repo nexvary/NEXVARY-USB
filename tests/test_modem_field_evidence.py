@@ -46,6 +46,48 @@ class NoisyPortTests(unittest.TestCase):
         status, _ = _one_query(Unfinished("COM7", 115200), "AT+CGMM", 0.2)
         self.assertEqual("TIMEOUT", status)
 
+    def test_k3770_6a86_fallback_only_on_parameter_mismatch(self):
+        class K3770Alternative(DemoSerial):
+            ANSWERS = dict(DemoSerial.ANSWERS, **{
+                'AT+CSIM=14,"00A4000C023F00"': ('+CSIM: 4,"6A86"', 'OK'),
+                'AT+CSIM=14,"00A40004023F00"': ('+CSIM: 4,"9000"', 'OK')})
+            sent = []
+            def write(self, payload):
+                self.sent.append(payload.decode("ascii").strip())
+                super().write(payload)
+        class Holder:
+            modem = None
+            def __call__(self, device, speed):
+                self.modem = K3770Alternative(device,speed)
+                return self.modem
+        holder=Holder()
+        result=select_master_file("COM7",factory=holder)
+        self.assertEqual("ACCEPTED",result.status)
+        self.assertEqual("SW=9000",result.value)
+        self.assertIn("UICC_FCP",result.note)
+        self.assertEqual([
+            "AT", 'AT+CSIM=14,"00A4000C023F00"',
+            'AT+CSIM=14,"00A40004023F00"'],holder.modem.sent)
+
+    def test_non_6a86_card_failure_does_not_retry(self):
+        class OtherStatus(DemoSerial):
+            ANSWERS = dict(DemoSerial.ANSWERS, **{
+                'AT+CSIM=14,"00A4000C023F00"': ('+CSIM: 4,"6982"', 'OK')})
+            sent = []
+            def write(self,payload):
+                self.sent.append(payload.decode("ascii").strip())
+                super().write(payload)
+        class Holder:
+            modem = None
+            def __call__(self,device,speed):
+                self.modem=OtherStatus(device,speed)
+                return self.modem
+        holder=Holder()
+        result=select_master_file("COM7",factory=holder)
+        self.assertEqual("CARD_STATUS",result.status)
+        self.assertEqual("SW=6982",result.value)
+        self.assertEqual(2,len(holder.modem.sent))
+
     def test_fixed_apdu_still_requires_actual_card_status_word(self):
         result = select_master_file("COM7", factory=VodafoneK3770)
         self.assertEqual("ACCEPTED", result.status)
