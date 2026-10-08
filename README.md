@@ -26,6 +26,7 @@ To run without hardware:
 py -m nexvary_usim_lab demo
 py -m nexvary_usim_lab catalog
 py -m nexvary_usim_lab ports
+py -m nexvary_usim_lab diagnose --export usb-diagnostic.json
 ```
 
 Windows EXE: GitHub Actions → **USB-USIM Lab checks** → latest successful run
@@ -104,3 +105,17 @@ copied into this repository.
   permissions; no silent network changes.
 - Production installer and integrity-signed Windows build once hardware
   and security verification are complete.
+
+## Windows USB detected but no COM ports?
+
+As of this revision the GUI scans both Windows Plug and Play devices and serial COM ports.
+It now shows Huawei/ZTE interfaces even when Windows recognizes only a mass-storage
+or a USB device without modem driver. Use **تحديث الأجهزة**, then **تقرير USB** to
+export a redacted inventory and send it for analysis. The report excludes raw
+PnP InstanceId/device serials and does not include subscriber IMSI/IMEI.
+
+If `USB_NO_COM` appears, check Device Manager for removable disk, CD-ROM,
+modem, and unrecognized USB interfaces; identify vendor/product IDs without
+installing random drivers or flashing the modem. The program does not silently
+switch USB modes or install unsigned drivers. If the OS genuinely has no device,
+changing code cannot make an unplugged/faulty USB device readable.

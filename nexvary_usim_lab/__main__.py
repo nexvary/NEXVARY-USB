@@ -5,10 +5,11 @@ from pathlib import Path
 
 from .core import LabError, demo, pcsc_readers, ports, probe, select_master_file, to_csv, to_json
 from .catalog import KNOWN_MODEMS, identification_hint
+from .discovery import detect, to_diagnostic_json
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="NEXVARY USB-USIM Lab — read-only local diagnostics")
-    parser.add_argument("action", nargs="?", choices=("gui", "ports", "pcsc", "probe", "demo", "select-mf", "catalog"), default="gui")
+    parser.add_argument("action", nargs="?", choices=("gui", "ports", "pcsc", "probe", "demo", "select-mf", "catalog", "diagnose"), default="gui")
     parser.add_argument("--port", help="Explicit modem serial port, for probe only")
     parser.add_argument("--baudrate", type=int, default=115200)
     parser.add_argument("--export", help="Optional .json or .csv redacted report")
@@ -18,6 +19,18 @@ def main(argv=None):
         if args.action == "gui":
             from .gui import main as start_gui
             start_gui()
+            return 0
+        if args.action == "diagnose":
+            result = to_diagnostic_json(detect())
+            if args.export:
+                path = Path(args.export)
+                if path.suffix.lower() != ".json":
+                    parser.error("USB diagnostic export must end with .json")
+                with path.open("x", encoding="utf-8") as handle:
+                    handle.write(result)
+                print("Diagnostic saved:", path)
+            else:
+                print(result)
             return 0
         if args.action == "catalog":
             for entry in KNOWN_MODEMS:

@@ -6,6 +6,9 @@ from tkinter import ttk, filedialog, messagebox
 
 from .core import LabError, demo, pcsc_readers, ports, probe, select_master_file, to_csv, to_json
 from .catalog import identification_hint
+from .discovery import detect, to_diagnostic_json
+import sys
+import os
 
 BG = "#0C1319"
 PANEL = "#17232E"
@@ -19,13 +22,17 @@ class App:
     def __init__(self, root):
         self.root = root
         self.root.title("NEXVARY | USB-USIM Lab")
-        self.root.geometry("1030x710")
-        self.root.minsize(780, 560)
+        self.root.geometry("1150x790")
+        self.root.minsize(900, 640)
         self.root.configure(bg=BG)
         self.devices = []
+        self.usb_devices = []
+        self.inventory = None
         self.report = None
         self.busy = False
         self.status = tk.StringVar(value="جاهز — لم يتم الاتصال بأي جهاز")
+        self.device_status = tk.StringVar(value="جارٍ اكتشاف أجهزة USB وCOM...")
+        self.usb_advice = tk.StringVar(value="سنعرض هنا حالة تعريف الفلاشة حتى لو لم يظهر منفذ COM.")
         self._styles()
         self._layout()
         self.refresh()
@@ -67,6 +74,7 @@ class App:
         toolbar.pack(fill="x", pady=(0, 12))
         self._button(toolbar, "تجربة بدون جهاز", self.show_demo).pack(side="left", padx=(0, 8))
         self._button(toolbar, "تصدير التقرير", self.export).pack(side="left")
+        self._button(toolbar, "تقرير USB", self.export_usb).pack(side="left", padx=(8, 0))
         self._button(toolbar, "اختبار APDU", self.apdu_check).pack(side="left", padx=(8, 0))
         self._button(toolbar, "فحص الفلاشة المحددة", self.inspect, strong=True).pack(side="right")
         self._button(toolbar, "تحديث الأجهزة", self.refresh).pack(side="right", padx=(0, 8))
@@ -79,14 +87,26 @@ class App:
         body.add(results, stretch="always", minsize=370)
         body.add(devices, stretch="never", minsize=270, width=310)
 
-        self._label(devices, "الأجهزة / منافذ COM", 13, bold=True).pack(fill="x", pady=(0, 10))
+        self._label(devices, "الأجهزة المكتشفة عبر Windows USB", 12, bold=True).pack(fill="x", pady=(0, 6))
+        tk.Label(devices, textvariable=self.device_status, bg=PANEL, fg=ACCENT,
+                 font=("Segoe UI", 10, "bold"), anchor="e", justify="right",
+                 wraplength=305).pack(fill="x", pady=(0, 6))
+        self.usb_box = tk.Listbox(devices, bg=FIELD, fg=FG, selectbackground="#276078",
+                                  borderwidth=0, font=("Segoe UI", 10), height=7,
+                                  activestyle="none", exportselection=False)
+        self.usb_box.pack(fill="x", pady=(0, 6))
+        self.usb_box.bind("<<ListboxSelect>>", self.on_usb_select)
+        tk.Label(devices, textvariable=self.usb_advice, bg=PANEL, fg=SOFT,
+                 font=("Segoe UI", 9), anchor="e", justify="right",
+                 wraplength=302).pack(fill="x", pady=(0, 14))
+        self._label(devices, "منافذ COM الجاهزة للاختبار", 12, bold=True).pack(fill="x", pady=(0, 9))
         self.ports_box = tk.Listbox(devices, bg=FIELD, fg=FG, selectbackground="#276078",
                                     selectforeground="white", borderwidth=0,
-                                    font=("Consolas", 10), activestyle="none", height=15,
+                                    font=("Consolas", 10), activestyle="none", height=8,
                                     exportselection=False)
         self.ports_box.pack(fill="both", expand=True)
-        self._label(devices, "اختر منفذ AT الخاص بالمودم، وليس منفذ التخزين.", 9, SOFT).pack(fill="x", pady=(10, 0))
-        self._label(devices, "قد تظهر للفلاشة أكثر من واجهة COM.", 9, SOFT).pack(fill="x")
+        self._label(devices, "لا تختبر جهاز تخزين USB كمنفذ AT.", 9, SOFT).pack(fill="x", pady=(10, 0))
+        self._label(devices, "إذا ظهرت USB فقط، احفظ تقرير USB وأرسله للفحص.", 9, SOFT).pack(fill="x")
 
         self._label(results, "نتائج الاختبارات", 13, bold=True).pack(fill="x", pady=(0, 10))
         frame = tk.Frame(results, bg=PANEL)
@@ -99,9 +119,10 @@ class App:
             self.table.heading(key, text=label, anchor="e")
             self.table.column(key, width=width, anchor="e", stretch=(key == "result"))
         self.table.pack(side="left", fill="both", expand=True)
-        ttk.Scrollbar(frame, command=self.table.yview, orient="vertical",
-                      style="N.Vertical.TScrollbar").pack(side="right", fill="y")
-        self.table.configure(yscrollcommand=lambda first, last: None)
+        scrollbar = ttk.Scrollbar(frame, command=self.table.yview, orient="vertical",
+                                  style="N.Vertical.TScrollbar")
+        scrollbar.pack(side="right", fill="y")
+        self.table.configure(yscrollcommand=scrollbar.set)
         footer = tk.Frame(self.root, bg=BG, padx=22, pady=13)
         footer.pack(fill="x")
         self._label(footer, "التوافق مع AKA / PCSC / ePDG / IMS غير مثبت حتى إجراء اختبارات حقيقية.", 9, SOFT).pack(side="right")
@@ -109,20 +130,83 @@ class App:
                  font=("Segoe UI", 10)).pack(side="left")
 
     def refresh(self):
-        if self.busy: return
-        try:
-            self.devices = ports()
-        except LabError as exc:
-            self.devices = []
-            self.status.set(str(exc))
+        if self.busy:
+            return
+        self.busy = True
+        self.device_status.set("جارٍ فحص USB وCOM بدون تعديل تعريفات Windows...")
+        self.status.set("يتم البحث عن الجهاز عبر Windows PnP والمنافذ التسلسلية")
+        def worker():
+            try:
+                result = detect()
+                self.root.after(0, lambda: self._refresh_done(result, None))
+            except Exception:
+                self.root.after(0, lambda: self._refresh_done(None, "فشل تشخيص USB. افتح إدارة الأجهزة للتحقق من التعريف."))
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _refresh_done(self, snapshot, error):
+        self.busy = False
         self.ports_box.delete(0, "end")
+        self.usb_box.delete(0, "end")
+        self.devices = []
+        self.usb_devices = []
+        self.inventory = snapshot
+        if error:
+            self.device_status.set("لم يكتمل الفحص")
+            self.usb_advice.set(error)
+            self.status.set(error)
+            return
+        self.devices = snapshot.serial_ports
+        self.usb_devices = snapshot.devices
+        for item in snapshot.devices:
+            self.usb_box.insert("end", f"{item.name[:42]} | {item.usb_id} | {item.mode}")
         for item in self.devices:
             self.ports_box.insert("end", f"{item.device} | {identification_hint(item.description, item.manufacturer, item.vid)}")
+        if self.usb_devices:
+            self.usb_box.selection_set(0)
+            self.on_usb_select()
+        else:
+            self.usb_advice.set("لا تظهر واجهات Huawei/ZTE في PnP. افصل وأعد توصيل الفلاشة، ثم تحقق من Device Manager.")
         if self.devices:
             self.ports_box.selection_set(0)
-            self.status.set(f"تم اكتشاف {len(self.devices)} منفذ — ليست كلها بالضرورة مودمات")
-        else:
-            self.status.set("لا توجد منافذ متاحة — تحقق من التعريفات أو جرّب الوضع التجريبي")
+        self.device_status.set(snapshot.message)
+        self.status.set(f"واجهات USB: {len(snapshot.devices)} | منافذ COM: {len(snapshot.serial_ports)} | {snapshot.diagnostic}")
+        if not self.devices:
+            for row in self.table.get_children():
+                self.table.delete(row)
+            self.table.insert("", "end", values=("NO_COM", "افتح تقرير USB أو Device Manager لمعرفة السبب", "كشف المنافذ"))
+            self.report = None
+
+    def on_usb_select(self, *_):
+        selected = self.usb_box.curselection()
+        if not selected or selected[0] >= len(self.usb_devices):
+            return
+        device = self.usb_devices[selected[0]]
+        self.usb_advice.set(device.advice)
+        if device.com_port:
+            for index, port in enumerate(self.devices):
+                if port.device.upper() == device.com_port:
+                    self.ports_box.selection_clear(0, "end")
+                    self.ports_box.selection_set(index)
+                    self.ports_box.see(index)
+                    break
+
+    def export_usb(self):
+        if not self.inventory:
+            messagebox.showinfo("NEXVARY", "اضغط تحديث الأجهزة وانتظر اكتمال التشخيص.")
+            return
+        path = filedialog.asksaveasfilename(title="حفظ تشخيص USB المنقح",
+                                            defaultextension=".json",
+                                            filetypes=[("JSON", "*.json")])
+        if not path:
+            return
+        try:
+            with open(path, "x", encoding="utf-8", newline="") as handle:
+                handle.write(to_diagnostic_json(self.inventory))
+            self.status.set("حُفظ تقرير USB بدون أرقام IMEI أو بيانات InstanceId الكاملة.")
+        except FileExistsError:
+            messagebox.showwarning("NEXVARY", "الملف موجود بالفعل؛ اختر اسمًا جديدًا.")
+        except OSError:
+            messagebox.showerror("NEXVARY", "تعذر حفظ التقرير.")
 
     def _show_report(self, report):
         self.report = report

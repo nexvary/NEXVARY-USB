@@ -39,6 +39,10 @@ jobs:
         run: python -m nexvary_usim_lab demo
       - name: Catalog smoke check
         run: python -m nexvary_usim_lab catalog
+      - name: OS USB inventory smoke check
+        run: python -m nexvary_usim_lab diagnose
+      - name: Compile GUI and discovery
+        run: python -m compileall -q nexvary_usim_lab
   windows-exe:
     runs-on: windows-2022
     timeout-minutes: 15
