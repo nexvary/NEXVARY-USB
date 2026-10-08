@@ -1,0 +1,21 @@
+NEXVARY USB Studio 0.4.0
+
+A focused workstation for USB modem management.
+
+Included implementations:
+- Windows PnP inventory and physical-device grouping.
+- User-initiated AT port discovery and local port preferences.
+- SIM/PIN state, redacted ICCID, read-only EF_DIR and SELECT MF checks.
+- Network signal, registration, operator and APN queries.
+- Confirmed single-message ASCII SMS; experimental single-part UCS2 PDU SMS.
+- APN changes only after confirming an inactive context and read-back.
+- Redacted JSON/CSV device reports and optional PC/SC reader inventory.
+- Arabic RTL desktop with scalable vector icons and scrollable pages.
+
+Hardware support varies. USIM AKA has a consent-gated local adapter but is
+not verified on the listed modems or integrated into a working gateway.
+No Ki/OPc extraction, SIM writes, carrier unlocking, firmware flashing,
+USB driver installation, automatic data dialing or file associations.
+
+The installer preserves your existing user settings. Removing the
+application does not remove user reports or port preferences.

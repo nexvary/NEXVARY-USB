@@ -45,3 +45,9 @@ class GroupingTests(unittest.TestCase):
             with self.assertRaises(LabError):
                 with ATSession('COM7',factory=DemoSerial):pass
         self.assertFalse(probe('COM7',factory=DemoSerial).simulated)
+
+    def test_duplicate_container_cannot_override_distinct_physical_parents(self):
+        from dataclasses import replace
+        data=inventory()
+        data=replace(data,devices=[replace(x,container='12345678-1111-2222-3333-123456789000') for x in data.devices])
+        self.assertEqual(2,len(group_devices(data)))

@@ -1,0 +1,19 @@
+NEXVARY USB Studio runtime notices
+
+PySide6 and Shiboken6 / Qt 6.12.0: Copyright The Qt Company Ltd.
+Distributed using the applicable LGPLv3 terms for used Qt modules.
+Qt sources: https://code.qt.io/qt/qtbase.git/ and https://code.qt.io/pyside/pyside-setup.git/
+Corresponding release: 6.12.0. Qt module-specific third-party notices remain applicable.
+License texts accompany this distribution. You may replace/rebuild the runtime
+under its license; source invocation and build instructions are available at
+https://github.com/nexvary/NEXVARY-USB . No restriction on reverse engineering
+for debugging modifications to LGPL-covered components is imposed by this project.
+
+pyserial 3.5: Copyright Chris Liechti. BSD license; see project sources:
+https://github.com/pyserial/pyserial/tree/v3.5
+Python: Python Software Foundation License; see https://www.python.org/psf/license/
+PyInstaller: GPL with special bootloader exception; https://pyinstaller.org/
+Pillow is a build-only artwork dependency and is not imported by the application.
+
+The seven reference gateway/SIM projects listed in docs/THIRD-PARTY-REVIEW.md
+are not bundled or linked. No upstream APDU/AKA implementation was copied.

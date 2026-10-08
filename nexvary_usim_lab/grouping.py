@@ -34,7 +34,9 @@ def group_devices(inventory):
     clusters = []
     for interface in inventory.devices:
         keys = evidence_keys(interface)
-        related = [c for c in clusters if keys and c[0] & keys]
+        roots={k for k in keys if k.startswith('physical:')}
+        related = [c for c in clusters if keys and c[0] & keys and
+                   not (roots and (other_roots:={k for k in c[0] if k.startswith('physical:')}) and not roots & other_roots)]
         if not related:
             clusters.append([keys, [interface]])
         else:

@@ -1,137 +1,56 @@
-# NEXVARY USB
+# NEXVARY USB Studio 0.4.0
 
-**NEXVARY USB Studio v0.3.1 — integrated beta**. Windows desktop and Linux CLI with safe modem management.
-Current scope: read-only modem inventory, SIM status, masked ICCID, AT capability
-queries, optional owner-consented fixed APDU SELECT MF, optional PC/SC reader inventory,
-offline simulation, redacted JSON/CSV exports, and three physical-label-based models
-(Huawei E153, ZTE MF190S, Huawei/Vodafone K3770).
+Arabic RTL USB modem workstation for Windows, with Linux CLI/desktop support.
+Upgraded from the existing 0.3.1 code; device operations are preserved and extended.
 
-**The project is experimental.** It does not currently perform USIM AKA, control
-VoWiFi calls, activate ePDG/IPsec/IMS, flash modems, unlock carrier restrictions,
-extract SIM keys, or send SMS. Model catalog entries do not imply functionality:
-compatibility requires tests on the actual modem and authorized SIM.
+The main view groups interfaces by Windows PnP container/physical USB ancestry,
+never just VID/PID. Device cards provide scan, SIM, SMS, network, advanced details
+and reports. AT discovery runs only after a user action, skips Diagnostics by
+default and saves the working port locally. Unresolved PnP relationships are
+shown honestly instead of merging independent modems.
 
-## Windows — portable GUI from source
+Included: SIM/PIN state, redacted ICCID, EF_DIR USIM/ISIM application inventory,
+fixed SELECT MF, network status, APN changes with inactive-context/read-back
+checks, confirmed ASCII SMS, experimental single-part Arabic UCS2 PDU SMS,
+local inbox, reports, optional PC/SC reader enumeration and evidence profiles.
 
-```powershell
-git clone https://github.com/nexvary/NEXVARY-USB.git
-cd NEXVARY-USB
-py -m pip install -r requirements.txt
-py -m nexvary_usim_lab gui
-```
+**Hardware support is not established by compilation.** K3770 has owner-reported
+AT/SIM READY and SELECT MF `6A86` evidence; E153/MF190S have label evidence.
+No new physical-device test was performed during automated development.
+ModemUsimBackend is implemented locally with consent/scoped authorization, but
+remote WiFi-Call broker integration, real AKA, ePDG/IPsec, IMS and calls are not
+verified. QMI/MBIM control, PC/SC APDU, inbound Arabic PDU decoding and automatic
+cellular-data dialing remain unimplemented.
 
-To run without hardware:
-
-```powershell
-py -m nexvary_usim_lab demo
-py -m nexvary_usim_lab catalog
-py -m nexvary_usim_lab ports
-py -m nexvary_usim_lab diagnose --export usb-diagnostic.json
-```
-
-Windows binaries: GitHub Actions → **USB-USIM Lab checks** → latest successful run → **Artifacts** → `NEXVARY-USB-Studio-Windows-Installer` (Inno Setup) or `NEXVARY-USB-Studio-Windows-Portable`.
-Do not confuse CI with real hardware validation.
-
-## Ubuntu 24.04 / desktop Linux
+## Run
 
 ```bash
-git clone https://github.com/nexvary/NEXVARY-USB.git
-cd NEXVARY-USB
-python3 -m venv .venv
-. .venv/bin/activate
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 python -m nexvary_usim_lab gui
+python -m nexvary_usim_lab ports
+python -m nexvary_usim_lab diagnose --export report.json
+python -m nexvary_usim_lab probe --port COM7 --export modem-report.json
 ```
 
-Headless use: `python -m nexvary_usim_lab ports` and
-`python -m nexvary_usim_lab probe --port /dev/ttyUSB0 --export report.json`.
-For GUI also install your distribution's Tkinter dependency if missing.
-On Linux use existing user serial permissions rather than indiscriminate root use.
-If the stick appears only as a USB storage device, first inspect its USB VID:PID
-and the distribution usb_modeswitch database. **Do not blindly run external
-firmware or modeswitch commands** against an unknown device.
+On Ubuntu use a virtual environment and existing serial permissions. No root,
+USB driver installation, firmware flashing or blind USB mode-switching is needed
+for diagnostics. The Windows installer does not alter file associations.
 
-## Tests, output, and hardware sequence
+## Verification
 
 ```bash
-python -m unittest discover -s tests -p 'test_*.py' -v
-python -m nexvary_usim_lab probe --port COM3 --export report.json
-python -m nexvary_usim_lab select-mf --port COM3 --consent
+python -m unittest discover -s tests -v
+QT_QPA_PLATFORM=offscreen QT_SCALE_FACTOR=1.5 python scripts/windows_ui_smoke.py
 ```
 
-Port is chosen by the user, never guessed. SELECT MF is a fixed APDU read-only
-selection test with an explicit owner consent flag, and returns only SW1/SW2.
-It does not prove AKA support; the operating system and modem must permit it.
-No arbitrary APDU execution or public API is provided.
+GitHub Actions runs tests on Ubuntu 24.04 and Windows Server 2022, captures real
+Qt page screenshots for 1024×768, 1280×720, 1366×768 and 1920×1080 at 100%, 125%
+and 150%, builds the portable EXE and Inno Setup installer, checks packaged UI,
+install/upgrade/uninstall and settings preservation, and publishes SHA256SUMS.
+Synthetic device screenshots are explicitly marked and are not physical evidence.
 
-## Hardware catalog
+- [Delivery status](docs/DELIVERY-STATUS.md)
+- [USIM integration limits](docs/USIM-INTEGRATION.md)
+- [Seven upstream projects and license review](docs/THIRD-PARTY-REVIEW.md)
 
-| Label confirmed by owner photo | Vendor | First investigation |
-|---|---|---|
-| E153 | Huawei | Expose AT port, check +CSIM and +CGLA |
-| MF190S | ZTE | Detect correct AT port, check UICC command behavior |
-| K3770 (not K3770-Z) | Huawei / Vodafone | Identify storage/modem USB mode and AT port |
-
-Huawei family VID `12D1`, ZTE `19D2` are **hints**, not exact
-model IDs. The photo does not expose per-device USB VID:PID, firmware or
-actual supported APDU interfaces.
-
-## NEXVARY WiFi Call integration
-
-This project is now **standalone**. It was initialized from the previously
-verified diagnostics in `nexvary/NEXVARY-WiFi-Call` at
-`f441b5d4eac7a97f54424bd0035e86d1100be81e`.
-The original module remains in that repo; nothing was removed there.
-
-A future `ModemUsimBackend` must be separately audited and enabled only
-after proving card-initiated, authorized authentication. Carrier Wi-Fi Calling
-also requires independent operator entitlement, ePDG SWu/IPsec and IMS
-verification. No credentials, Ki/OPc or challenge/response secrets in logs.
-
-Read `docs/USB-USIM-LAB.md` for research boundaries and upgrade gates.
-Third-party projects are studied as references; their source code is not
-copied into this repository.
-
-## Next milestones
-
-- Real USB modem profile testing on three labeled devices; USB-storage vs modem
-  interfaces; VID:PID/driver evidence.
-- Safe USIM/ISIM file inventory with consent, strict allowed operations,
-  and no personal identifiers in exported reports.
-- Opt-in SIM-resident AKA backend with strict authentication, time bounds,
-  and documented modem-specific support.
-- SMS and cellular-data modules separately gated by explicit device/user
-  permissions; no silent network changes.
-- Production installer and integrity-signed Windows build once hardware
-  and security verification are complete.
-
-## Windows USB detected but no COM ports?
-
-As of this revision the GUI scans both Windows Plug and Play devices and serial COM ports.
-It now shows Huawei/ZTE interfaces even when Windows recognizes only a mass-storage
-or a USB device without modem driver. Use **تحديث الأجهزة**, then **تقرير USB** to
-export a redacted inventory and send it for analysis. The report excludes raw
-PnP InstanceId/device serials and does not include subscriber IMSI/IMEI.
-
-If `USB_NO_COM` appears, check Device Manager for removable disk, CD-ROM,
-modem, and unrecognized USB interfaces; identify vendor/product IDs without
-installing random drivers or flashing the modem. The program does not silently
-switch USB modes or install unsigned drivers. If the OS genuinely has no device,
-changing code cannot make an unplugged/faulty USB device readable.
-
-
-## Integrated desktop capabilities (v0.3.1)
-
-Five RTL desktop areas: modem/USB devices, SIM and APDU, SMS, redacted reports, and PC/SC/compatibility. The app now includes real user-confirmed one-at-a-time outbound English/ASCII SMS, read-only received SMS display, masked ICCID file accessibility checks over AT+CRSM, fixed SELECT MF over AT+CSIM, modem AT diagnostics, Windows PnP USB inventory and JSON/CSV export. Hardware-specific operations are **not** considered validated merely because the software builds. The Windows package includes a generated custom NEXVARY icon and an Inno Setup installer. The installer is not digitally code-signed.
-
-## Not yet achieved
-
-A generalized USIM/ISIM APDU abstraction, authenticated SIM AKA backend, secure bridge to NEXVARY-WiFi-Call, EAP-AKA/IPsec SWu/ePDG, IMS registration, actual carrier Wi-Fi calls, and Arabic UCS2 SMS. Operator privileges and service entitlement cannot be assumed from an older 3G modem. Refer to `docs/DELIVERY-STATUS.md` before claiming production readiness.
-
-## K3770 real SELECT MF status 6A86
-
-The physical K3770 returned SW=6A86 for the original SELECT P2=00. The
-application now tests a fixed allow-list of MF SELECT variants with P2=0C,
-P2=04, P2=00, and legacy GSM CLA A0. It only retries after 6A86, does not
-export card response data, and never sends PIN, UPDATE or AUTHENTICATE.
-A card SELECT SW=9000 or 61xx/9Fxx is not USIM AKA success.
+No arbitrary APDU listener, SIM key extraction, silent SMS or automatic dialing.

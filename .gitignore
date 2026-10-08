@@ -12,3 +12,9 @@ dist/
 *.csv
 report.json
 report-*.json
+
+ui-evidence/
+installer-output/
+assets/*.ico
+assets/*.png
+assets/*.bmp

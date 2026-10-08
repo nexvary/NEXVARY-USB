@@ -1,5 +1,5 @@
 #define MyAppName "NEXVARY USB Studio"
-#define MyAppVersion "0.3.1"
+#define MyAppVersion "0.4.0"
 #define MyAppPublisher "NEXVARY"
 #define MyAppExeName "NEXVARY-USB-Studio.exe"
 [Setup]
@@ -20,12 +20,20 @@ WizardStyle=modern
 PrivilegesRequired=admin
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
-DisableProgramGroupPage=yes
-VersionInfoVersion=0.3.1.0
+DisableProgramGroupPage=no
+DisableWelcomePage=no
+CloseApplications=yes
+InfoBeforeFile=installer\welcome.txt
+WizardImageFile=assets\wizard-large.bmp
+WizardSmallImageFile=assets\wizard-small.bmp
+AppSupportURL=https://github.com/nexvary/NEXVARY-USB/issues
+AppUpdatesURL=https://github.com/nexvary/NEXVARY-USB/releases
+VersionInfoVersion=0.4.0.0
 VersionInfoCompany=NEXVARY
 VersionInfoDescription=NEXVARY USB modem and USIM management workstation
 [Files]
 Source: "dist\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "licenses\*"; DestDir: "{app}\licenses"; Flags: ignoreversion recursesubdirs
 [Icons]
 Name: "{autoprograms}\NEXVARY USB Studio"; Filename: "{app}\{#MyAppExeName}"
 Name: "{autodesktop}\NEXVARY USB Studio"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon

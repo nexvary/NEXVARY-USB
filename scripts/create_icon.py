@@ -23,3 +23,13 @@ d.ellipse((247,354,265,372),fill="#F4C569")
 img.save(OUT/"nexvary-usb.ico",format="ICO",sizes=[(16,16),(24,24),(32,32),(48,48),(64,64),(128,128),(256,256)])
 img.save(OUT/"nexvary-usb.png")
 print(OUT/"nexvary-usb.ico")
+# Installer wizard artwork generated from the original NEXVARY emblem.
+from PIL import ImageFont
+try:font=ImageFont.truetype('segoeuib.ttf',19)
+except OSError:font=ImageFont.load_default()
+large=Image.new('RGB',(164,314),'#0C1319')
+large.paste(img.resize((132,132)),(16,38),img.resize((132,132)))
+ld=ImageDraw.Draw(large);ld.text((19,191),'NEXVARY',font=font,fill='#B5BEC6')
+ld.text((21,231),'USB STUDIO',fill='#6A9BD0');ld.line((19,267,145,267),fill='#E7BE69',width=3)
+large.save(OUT/'wizard-large.bmp')
+small=Image.new('RGB',(55,55),'#0C1319');small.paste(img.resize((49,49)),(3,3),img.resize((49,49)));small.save(OUT/'wizard-small.bmp')
