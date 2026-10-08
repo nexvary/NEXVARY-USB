@@ -1,0 +1,2 @@
+pyserial>=3.5,<4
+# Optional PC/SC discovery: install pyscard separately only when needed.

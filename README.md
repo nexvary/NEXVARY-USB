@@ -1,5 +1,106 @@
 # NEXVARY USB
 
-USB modem recycling and USIM diagnostic workstation (Windows/Linux).
+**NEXVARY USB-USIM Lab v0.1.1** — Windows/Linux USB modem diagnostic workstation.
+Current scope: read-only modem inventory, SIM status, masked ICCID, AT capability
+queries, optional owner-consented fixed APDU SELECT MF, optional PC/SC reader inventory,
+offline simulation, redacted JSON/CSV exports, and three physical-label-based models
+(Huawei E153, ZTE MF190S, Huawei/Vodafone K3770).
 
-> Experimental, hardware read-only by default. No carrier Wi-Fi Calling or AKA claims until verified on actual authorized SIM hardware.
+**The project is experimental.** It does not currently perform USIM AKA, control
+VoWiFi calls, activate ePDG/IPsec/IMS, flash modems, unlock carrier restrictions,
+extract SIM keys, or send SMS. Model catalog entries do not imply functionality:
+compatibility requires tests on the actual modem and authorized SIM.
+
+## Windows — portable GUI from source
+
+```powershell
+git clone https://github.com/nexvary/NEXVARY-USB.git
+cd NEXVARY-USB
+py -m pip install -r requirements.txt
+py -m nexvary_usim_lab gui
+```
+
+To run without hardware:
+
+```powershell
+py -m nexvary_usim_lab demo
+py -m nexvary_usim_lab catalog
+py -m nexvary_usim_lab ports
+```
+
+Windows EXE: GitHub Actions → **USB-USIM Lab checks** → latest successful run
+→ **Artifacts** → `NEXVARY-USIM-Lab-Windows`.
+Do not confuse CI with real hardware validation.
+
+## Ubuntu 24.04 / desktop Linux
+
+```bash
+git clone https://github.com/nexvary/NEXVARY-USB.git
+cd NEXVARY-USB
+python3 -m venv .venv
+. .venv/bin/activate
+pip install -r requirements.txt
+python -m nexvary_usim_lab gui
+```
+
+Headless use: `python -m nexvary_usim_lab ports` and
+`python -m nexvary_usim_lab probe --port /dev/ttyUSB0 --export report.json`.
+For GUI also install your distribution's Tkinter dependency if missing.
+On Linux use existing user serial permissions rather than indiscriminate root use.
+If the stick appears only as a USB storage device, first inspect its USB VID:PID
+and the distribution usb_modeswitch database. **Do not blindly run external
+firmware or modeswitch commands** against an unknown device.
+
+## Tests, output, and hardware sequence
+
+```bash
+python -m unittest discover -s tests -p 'test_*.py' -v
+python -m nexvary_usim_lab probe --port COM3 --export report.json
+python -m nexvary_usim_lab select-mf --port COM3 --consent
+```
+
+Port is chosen by the user, never guessed. SELECT MF is a fixed APDU read-only
+selection test with an explicit owner consent flag, and returns only SW1/SW2.
+It does not prove AKA support; the operating system and modem must permit it.
+No arbitrary APDU execution or public API is provided.
+
+## Hardware catalog
+
+| Label confirmed by owner photo | Vendor | First investigation |
+|---|---|---|
+| E153 | Huawei | Expose AT port, check +CSIM and +CGLA |
+| MF190S | ZTE | Detect correct AT port, check UICC command behavior |
+| K3770 (not K3770-Z) | Huawei / Vodafone | Identify storage/modem USB mode and AT port |
+
+Huawei family VID `12D1`, ZTE `19D2` are **hints**, not exact
+model IDs. The photo does not expose per-device USB VID:PID, firmware or
+actual supported APDU interfaces.
+
+## NEXVARY WiFi Call integration
+
+This project is now **standalone**. It was initialized from the previously
+verified diagnostics in `nexvary/NEXVARY-WiFi-Call` at
+`f441b5d4eac7a97f54424bd0035e86d1100be81e`.
+The original module remains in that repo; nothing was removed there.
+
+A future `ModemUsimBackend` must be separately audited and enabled only
+after proving card-initiated, authorized authentication. Carrier Wi-Fi Calling
+also requires independent operator entitlement, ePDG SWu/IPsec and IMS
+verification. No credentials, Ki/OPc or challenge/response secrets in logs.
+
+Read `docs/USB-USIM-LAB.md` for research boundaries and upgrade gates.
+Third-party projects are studied as references; their source code is not
+copied into this repository.
+
+## Next milestones
+
+- Real USB modem profile testing on three labeled devices; USB-storage vs modem
+  interfaces; VID:PID/driver evidence.
+- Safe USIM/ISIM file inventory with consent, strict allowed operations,
+  and no personal identifiers in exported reports.
+- Opt-in SIM-resident AKA backend with strict authentication, time bounds,
+  and documented modem-specific support.
+- SMS and cellular-data modules separately gated by explicit device/user
+  permissions; no silent network changes.
+- Production installer and integrity-signed Windows build once hardware
+  and security verification are complete.
