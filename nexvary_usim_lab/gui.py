@@ -11,8 +11,8 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
     QHBoxLayout, QGridLayout, QLabel, QPushButton, QFrame, QScrollArea,
     QStackedWidget, QTableWidget, QTableWidgetItem, QHeaderView, QFileDialog,
     QMessageBox, QLineEdit, QTextEdit, QCheckBox, QComboBox, QSpinBox, QDialog)
-from .core import demo, probe, select_master_file, pcsc_readers, to_json, to_csv, LabError
-from .catalog import load_profiles
+from .core import Report, demo, probe, select_master_file, pcsc_readers, to_json, to_csv, LabError
+from .catalog import load_profiles, model_from_text
 from .discovery import detect, to_diagnostic_json
 from .device_operations import ATSession
 from .grouping import group_devices, port_role, candidates
@@ -171,7 +171,12 @@ class Workstation(QMainWindow):
         # Never retain an old COM selection after an unplug or refresh.
         self.selected=None;self.active_port=None;self.report=None
         self.connection_label.setText('اختر بطاقة الجهاز للفحص؛ لن تُرسل أوامر تلقائيًا')
+        self._populate_readings([]);rows(self.sms_table,[]);rows(self.network_table,[])
+        self.card_label.setText('لا نتيجة حالية — اختر الجهاز وافحصه')
         self.detection_label.setText(f'{len(self.devices)} جهاز/مجموعة • {len(data.devices)} واجهة تقنية • {data.message}')
+        self._render_cards()
+
+    def _render_cards(self):
         while self.cards.count():
             w=self.cards.takeAt(0).widget()
             if w:w.deleteLater()
@@ -179,14 +184,19 @@ class Workstation(QMainWindow):
             box,v=panel();v.addWidget(label('لا توجد فلاشة متصلة','title'))
             v.addWidget(label('وصّل الفلاشة، ثم اضغط تحديث الأجهزة. لا تُعرض بيانات محاكاة تلقائيًا.','muted'));self.cards.addWidget(box)
         for device in self.devices:
+            previous=self.reports.get(device.key)
+            values={r.name:r.value for r in previous.readings} if previous else {}
+            if previous:
+                model_reading=next((r for r in previous.readings if r.name=='Model' and r.status=='OK'),None)
+                entry=model_from_text(model_reading.value) if model_reading else None
+                if entry:device.title=entry.brand+' '+entry.model+(' — Vodafone' if 'Vodafone' in device.title else '')
             box,v=panel();title=QHBoxLayout();logo=QLabel();logo.setPixmap(icon('devices',GOLD).pixmap(38,38));title.addWidget(logo)
             title.addWidget(label(device.title,'title'),1);v.addLayout(title)
             v.addWidget(label('متصل عبر '+(', '.join(p.device for p in device.ports) or 'USB؛ لا يوجد COM مرتبط'),'good'))
             v.addWidget(label(device.driver_status+' • '+device.evidence,'muted'))
             options=candidates(device,self.preferences.get(device.key))
             v.addWidget(label('منفذ AT المرشح: '+(options[0].device+' — يحتاج اختبار AT' if options else 'لا يوجد؛ افتح الفحص المتقدم'),'muted'))
-            previous=self.reports.get(device.key)
-            values={r.name:r.value for r in previous.readings} if previous else {}
+            if previous:v.addWidget(label('آخر فحص في هذه الجلسة: '+previous.timestamp_utc,'muted',True))
             v.addWidget(label('الشريحة: '+values.get('SIM status','لم تُفحص')+'\nFirmware: '+values.get('Firmware','لم يُقرأ')+'\nAPDU / USIM AKA: غير مثبت'))
             self._actions(v,[(name,lambda d=device,f=fn:self._device_action(d,f),kind,accent) for name,fn,kind,accent in (
                 ('فحص الجهاز',self.run_probe,'scan',True),('معلومات الشريحة',lambda:self.show('sim'),'sim',False),
@@ -296,6 +306,7 @@ class Workstation(QMainWindow):
             connection=values['Connection'].status=='OK';ready='READY' in values['SIM status'].value
             self.card_label.setText(('تم الاتصال بالمودم بنجاح' if connection else 'لم يثبت الاتصال بالمودم')+
                 ('، الشريحة جاهزة' if ready else '، راجع حالة الشريحة')+'؛ الوصول إلى APDU يحتاج اختبارًا مستقلًا.')
+            self._render_cards()
             self.show('sim')
         self._with_port('فحص المودم والشريحة',probe,done)
     def check_ef(self):
@@ -320,7 +331,11 @@ class Workstation(QMainWindow):
         readings=list(self.report.readings) if self.report else []
         readings=[x for x in readings if x.name!=r.name]+[r]
         if self.report:self.report.readings=readings
-        self._populate_readings(readings);self.show('sim')
+        else:
+            from datetime import datetime, timezone
+            self.report=Report('NEXVARY USB Studio',__version__,datetime.now(timezone.utc).isoformat(),self.active_port,False,readings)
+            self.reports[self.selected.key]=self.report
+        self._populate_readings(readings);self._render_cards();self.show('sim')
     def _session(self,port,fn):
         with ATSession(port) as s:return fn(s)
     def _confirm(self,title,text):

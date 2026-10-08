@@ -39,10 +39,16 @@ class TLSBridgeTests(unittest.TestCase):
     def test_client_certificate_required(self):
         import socket
         context=ssl.create_default_context(cafile=str(CERTS/'ca.pem'))
-        with self.assertRaises((OSError,ssl.SSLError)):
+        rejected=False
+        try:
             with socket.create_connection(('127.0.0.1',self.server.port),timeout=3) as raw:
                 with context.wrap_socket(raw,server_hostname='localhost') as tls:
-                    tls.sendall(b'POST /v1/usim/aka HTTP/1.1\r\n\r\n');tls.recv(1)
+                    tls.sendall(b'POST /v1/usim/aka HTTP/1.1\r\n\r\n')
+                    # OpenSSL platforms may reject by TLS alert or silent EOF.
+                    rejected=tls.recv(1)==b''
+        except (OSError,ssl.SSLError):
+            rejected=True
+        self.assertTrue(rejected)
         self.assertEqual(0,self.backend.calls)
 
     def test_replay_request_id_refused_before_backend(self):
