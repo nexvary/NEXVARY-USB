@@ -32,7 +32,7 @@ python -m nexvary_usim_lab diagnose --export report.json
 python -m nexvary_usim_lab probe --port COM7 --export modem-report.json
 ```
 
-On Ubuntu use a virtual environment and existing serial permissions. No root,
+On Ubuntu install `libegl1 libgl1 fonts-noto-core`, then use a virtual environment and existing serial permissions. No root,
 USB driver installation, firmware flashing or blind USB mode-switching is needed
 for diagnostics. The Windows installer does not alter file associations.
 
