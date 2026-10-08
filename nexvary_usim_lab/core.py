@@ -98,33 +98,65 @@ def _open_serial(device: str, baudrate: int):
         raise LabError("Unable to open serial port; check its driver and other software.") from None
 
 def _one_query(transport, command: str, deadline_seconds: float = 4) -> tuple[str, str]:
-    """Bounded query; never returns raw user data to callers."""
+    """Process expected AT reply while discarding unsolicited network chatter.
+
+    On real modems the command port may emit repeated unsolicited status lines
+    before the terminal OK/ERROR. A raw 32-line cap previously caused false
+    "Response limit exceeded" on Huawei K3770 even as later commands worked.
+    No unsolicited text is copied to exported reports.
+    """
     if command not in {q.command for q in QUERIES}:
         raise LabError("AT command is not in the read-only allow-list.")
     if not 0.2 <= deadline_seconds <= 15:
         raise LabError("Invalid query deadline.")
+    expected_prefix = {
+        "AT+CPIN?": "+CPIN:",
+        "AT+CCID": "+CCID:",
+        "AT+CSQ": "+CSQ:",
+        "AT+CREG?": "+CREG:",
+        "AT+CSIM=?": "+CSIM:",
+        "AT+CGLA=?": "+CGLA:",
+        "AT+CCHO=?": "+CCHO:",
+        "AT+CRSM=?": "+CRSM:",
+    }.get(command)
+    unprefixed_id = command in ("AT+CGMI", "AT+CGMM", "AT+CGMR")
     try:
         transport.reset_input_buffer()
         transport.write((command + "\r").encode("ascii"))
         transport.flush()
         deadline = time.monotonic() + deadline_seconds
-        lines = []
-        total = 0
+        output = []
+        noise_count = 0
+        total_bytes = 0
         while time.monotonic() < deadline:
             chunk = transport.readline()
             if not chunk:
                 continue
-            total += len(chunk)
-            if total > 4096 or len(lines) > 32:
-                return "LIMIT", "Response limit exceeded"
+            total_bytes += len(chunk)
+            if total_bytes > 32768:
+                return "NOISY", "Excess unsolicited modem traffic"
             line = chunk.decode("ascii", errors="replace").strip()
-            if not line or line == command:
+            if not line or line.upper() == command.upper():
                 continue
             if line == "OK":
-                return "OK", redact(" | ".join(lines)) or "OK"
+                return "OK", redact(" | ".join(output)) or "OK"
             if line == "ERROR" or line.startswith(("+CME ERROR", "+CMS ERROR")):
-                return "UNSUPPORTED", redact(" | ".join(lines)) or "Modem rejected query"
-            lines.append(line)
+                return "UNSUPPORTED", "Modem rejected this command"
+            if (expected_prefix and line.startswith(expected_prefix)) or (
+                command == "AT+CCID" and line.isdecimal() and 18 <= len(line) <= 22
+            ):
+                if len(output) < 5:
+                    output.append(line[:160])
+            elif unprefixed_id and len(line) <= 80 and not line.startswith(("+", "^", "%")):
+                # Identification commands return a plain model/vendor/version.
+                if len(output) < 5:
+                    output.append(line)
+            else:
+                noise_count += 1
+                if noise_count > 512:
+                    return "NOISY", "Continuous unsolicited modem traffic"
+        if output:
+            return "TIMEOUT", "Reply data received; final OK not received"
         return "TIMEOUT", "No complete reply within deadline"
     except LabError:
         raise
@@ -167,7 +199,7 @@ def probe(device: str, baudrate: int = 115200,
     finally:
         transport.close()
     return Report(
-        product="NEXVARY USB-USIM Lab", version="0.1.0",
+        product="NEXVARY USB-USIM Lab", version="0.1.2",
         timestamp_utc=datetime.now(timezone.utc).isoformat(timespec="seconds"),
         device=redact(device), simulated=False, readings=results)
 
