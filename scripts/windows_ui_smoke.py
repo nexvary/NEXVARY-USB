@@ -1,5 +1,8 @@
 """Create every Windows desktop view without the actual hardware."""
 import tkinter as tk
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from unittest.mock import patch
 from nexvary_usim_lab.discovery import Inventory
 from nexvary_usim_lab.gui import Workstation

@@ -22,8 +22,9 @@ _FINAL_ERROR = ("ERROR", "+CME ERROR", "+CMS ERROR")
 
 def mask_identifier(value: str) -> str:
     """Mask identifiers, including 10/11-digit telephone numbers in inbox."""
-    return _IMSI_PATTERN.sub(lambda m: "*" * (len(m.group())-4) + m.group()[-4:],
-                             value)
+    return re.sub(r"(?<!\d)\+?\d{7,22}(?!\d)",
+                  lambda m: "*" * (len(m.group())-4) + m.group()[-4:],
+                  value)
 
 def _parse_crsm(lines: list[str]) -> Reading:
     for line in lines:
@@ -128,7 +129,7 @@ class ATSession:
         state, _ = self._command("AT+CMGF=1", 4)
         if state != "OK":
             raise LabError("Modem does not support text SMS mode.")
-        state, lines = self._command('AT+CMGL="REC READ"', 15)
+        state, lines = self._command('AT+CMGL="ALL"', 15)
         if state == "ERROR":
             raise LabError("Inbox cannot be read on this modem.")
         if state != "OK":
@@ -138,14 +139,14 @@ class ATSession:
         for line in lines:
             m = _SMS_RECORD.match(line)
             if m:
-                if current:
+                if current and current["status"].startswith("REC"):
                     data.append(current)
                 current = {"index": m.group(1), "status": m.group(2),
                            "sender": mask_identifier(redact(m.group(3)))[:45],
                            "preview": ""}
             elif current and line and not line.startswith("AT+"):
                 current["preview"] = (current["preview"] + " " + line).strip()[:150]
-        if current:
+        if current and current["status"].startswith("REC"):
             data.append(current)
         return data[:max_messages]
 

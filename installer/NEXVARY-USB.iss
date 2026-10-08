@@ -3,6 +3,7 @@
 #define MyAppPublisher "NEXVARY"
 #define MyAppExeName "NEXVARY-USB-Studio.exe"
 [Setup]
+SourceDir=..
 AppId={{C7CE63D3-2B3C-4C64-9865-9B8092CC12CE}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
@@ -11,7 +12,7 @@ DefaultDirName={autopf}\NEXVARY USB Studio
 DefaultGroupName=NEXVARY USB Studio
 UninstallDisplayIcon={app}\{#MyAppExeName}
 SetupIconFile=assets\nexvary-usb.ico
-OutputDir=installer-output
+OutputDir=..\installer-output
 OutputBaseFilename=NEXVARY-USB-Studio-Setup-v{#MyAppVersion}
 Compression=lzma2
 SolidCompression=yes
