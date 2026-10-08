@@ -1,5 +1,6 @@
 name: USB-USIM Lab checks
 on:
+  workflow_dispatch:
   push:
     branches: [main]
     paths:
@@ -10,7 +11,10 @@ on:
       - '.github/workflows/usim-lab.yml'
   pull_request:
     paths:
-      - 'tools/usim-lab/**'
+      - 'nexvary_usim_lab/**'
+      - 'tests/**'
+      - 'launcher.py'
+      - 'requirements.txt'
       - '.github/workflows/usim-lab.yml'
 permissions:
   contents: read
@@ -38,9 +42,6 @@ jobs:
   windows-exe:
     runs-on: windows-2022
     timeout-minutes: 15
-    defaults:
-      run:
-        working-directory: tools/usim-lab
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
