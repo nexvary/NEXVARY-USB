@@ -30,7 +30,9 @@ def main(argv=None):
                     handle.write(result)
                 print("Diagnostic saved:", path)
             else:
-                print(result)
+                # Windows consoles may use cp1252. Emit ASCII-safe JSON to stdout;
+                # exported reports retain full Unicode UTF-8 text.
+                print(result.encode('ascii', 'backslashreplace').decode('ascii'))
             return 0
         if args.action == "catalog":
             for entry in KNOWN_MODEMS:
