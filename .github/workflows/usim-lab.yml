@@ -80,5 +80,5 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: NEXVARY-USB-Studio-Windows-Installer
-          path: installer-output/NEXVARY-USB-Studio-Setup-v0.3.0.exe
+          path: installer-output/NEXVARY-USB-Studio-Setup-v0.3.1.exe
           if-no-files-found: error

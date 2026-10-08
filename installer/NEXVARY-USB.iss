@@ -1,5 +1,5 @@
 #define MyAppName "NEXVARY USB Studio"
-#define MyAppVersion "0.3.0"
+#define MyAppVersion "0.3.1"
 #define MyAppPublisher "NEXVARY"
 #define MyAppExeName "NEXVARY-USB-Studio.exe"
 [Setup]
@@ -21,7 +21,7 @@ PrivilegesRequired=admin
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 DisableProgramGroupPage=yes
-VersionInfoVersion=0.3.0.0
+VersionInfoVersion=0.3.1.0
 VersionInfoCompany=NEXVARY
 VersionInfoDescription=NEXVARY USB modem and USIM management workstation
 [Files]

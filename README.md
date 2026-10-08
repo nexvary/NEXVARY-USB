@@ -1,6 +1,6 @@
 # NEXVARY USB
 
-**NEXVARY USB Studio v0.3.0 — integrated beta**. Windows desktop and Linux CLI with safe modem management.
+**NEXVARY USB Studio v0.3.1 — integrated beta**. Windows desktop and Linux CLI with safe modem management.
 Current scope: read-only modem inventory, SIM status, masked ICCID, AT capability
 queries, optional owner-consented fixed APDU SELECT MF, optional PC/SC reader inventory,
 offline simulation, redacted JSON/CSV exports, and three physical-label-based models
@@ -120,7 +120,7 @@ switch USB modes or install unsigned drivers. If the OS genuinely has no device,
 changing code cannot make an unplugged/faulty USB device readable.
 
 
-## Integrated desktop capabilities (v0.3.0)
+## Integrated desktop capabilities (v0.3.1)
 
 Five RTL desktop areas: modem/USB devices, SIM and APDU, SMS, redacted reports, and PC/SC/compatibility. The app now includes real user-confirmed one-at-a-time outbound English/ASCII SMS, read-only received SMS display, masked ICCID file accessibility checks over AT+CRSM, fixed SELECT MF over AT+CSIM, modem AT diagnostics, Windows PnP USB inventory and JSON/CSV export. Hardware-specific operations are **not** considered validated merely because the software builds. The Windows package includes a generated custom NEXVARY icon and an Inno Setup installer. The installer is not digitally code-signed.
 
