@@ -11,7 +11,7 @@ No changes were made to WiFi-Call or its deployed services.
 - `authenticate(rand_hex, autn_hex)` → `(RES, CK, IK)` or `(AUTS, None, None)`.
 - `identity()` fails closed: redacted diagnostics cannot provide a carrier NAI.
 
-Execution is local in-process. It requires current owner consent, an explicit USIM
+The modem adapter executes locally in-process. It requires current owner consent, an explicit USIM
 AID, a random private credential bound to one device and scope, and an authorization
 expiry no longer than five minutes. It opens the selected application using CCHO,
 sends one constructed USIM AUTHENTICATE over CGLA, handles bounded GET RESPONSE,
@@ -25,11 +25,27 @@ not included in reports or repr. Only logical channels 1–3 are currently suppo
 
 ## What is not wired or verified
 
-This adapter is not a deployed WiFi-Call broker backend. The current broker accepts
-paired phones, not USB Studio sessions. Remote pairing, mTLS transport, broker modem
-routing, user-facing AKA consent lifecycle and remote revocation remain to be built
-and reviewed before this adapter can be called across machines. No network service
-is started, so no unencrypted network transmission is introduced by this release.
+`secure_bridge.py` now provides an opt-in `PrivateUsimBridge` and `BridgeUsimClient`.
+The server binds **only 127.0.0.1**, requires a private CA, client certificate,
+pinned client certificate hash and the scoped device credential. The client
+requires a valid hostname/CA, client certificate and pinned server certificate.
+Only `POST /v1/usim/aka` exists; UUID correlation, duplicate-request limits,
+request size bounds and deadlines apply. No proxy headers, arbitrary commands,
+public bind, automatic certificate creation, persisted secrets or request logs
+are provided. Stop/expiry revokes the underlying modem session. Tests run actual
+loopback TLS with deliberately public synthetic test certificates and a fake
+AKA backend; they do not authenticate a real SIM.
+
+For another machine, forward the loopback endpoint with an independently
+provisioned private tunnel and use deployment-specific mTLS certificates. Do not
+use the public certificates from `tests/tls-fixtures` outside CI. This release
+does not start this service automatically or provision a production session.
+
+**Not deployed or wired:** the current WiFi-Call broker accepts paired phones,
+not USB Studio sessions. Broker routing, UI session consent, certificate pairing
+and deployment remain to be integrated and audited. The standalone mTLS client
+implements the same authenticate/authenticate_ami contract but is not selected
+by the existing engine. No live gateway or server service was modified.
 
 The actual K3770 response was SELECT MF `6A86`; that is not an AUTHENTICATE result.
 E153/MF190S have label evidence only. CCHO/CGLA support, an accessible USIM AID,

@@ -1,4 +1,12 @@
 $ErrorActionPreference = 'Stop'
+function Get-TextAssociations {
+    $keys = @('Registry::HKEY_CURRENT_USER\Software\Classes\.txt', 'Registry::HKEY_CLASSES_ROOT\.txt', 'Registry::HKEY_CLASSES_ROOT\txtfile\shell\open\command')
+    $values = foreach ($key in $keys) {
+        if (Test-Path -LiteralPath $key) { (Get-Item -LiteralPath $key).GetValue('') } else { '<missing>' }
+    }
+    return ($values | ConvertTo-Json -Compress)
+}
+$associations = Get-TextAssociations
 $installer = (Resolve-Path 'installer-output/NEXVARY-USB-Studio-Setup-v0.4.0.exe').Path
 $target = Join-Path $env:TEMP 'nexvary-usb-package-test'
 $settings = Join-Path $env:LOCALAPPDATA 'NEXVARY/USB-Studio'
@@ -16,12 +24,16 @@ Remove-Item $env:NEXVARY_PACKAGE_SMOKE -ErrorAction SilentlyContinue
 $p = Start-Process -FilePath $exe -PassThru
 if (!$p.WaitForExit(120000)) { Stop-Process -Id $p.Id; throw 'Packaged app timed out' }
 if ($p.ExitCode -ne 0 -or !(Test-Path $env:NEXVARY_PACKAGE_SMOKE)) { throw 'Packaged GUI failed to open all pages' }
+if ((Get-TextAssociations) -ne $associations) { throw 'Text file associations changed' }
+$marker = Get-Content -Raw $env:NEXVARY_PACKAGE_SMOKE | ConvertFrom-Json
+if ($marker.version -ne '0.4.0' -or $marker.pages.Count -ne 6) { throw 'Packaged version/page marker invalid' }
 # Upgrade using identical AppId, then uninstall; no outside directory is removed.
 $p = Start-Process -FilePath $installer -ArgumentList $args -Wait -PassThru
 if ($p.ExitCode -ne 0) { throw 'Upgrade failed' }
 $uninstaller = Join-Path $target 'unins000.exe'
 $p = Start-Process -FilePath $uninstaller -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART') -Wait -PassThru
 if ($p.ExitCode -ne 0 -or (Test-Path $exe)) { throw 'Uninstall failed' }
+if ((Get-TextAssociations) -ne $associations) { throw 'Uninstall altered text associations' }
 if (!(Test-Path $sentinel)) { throw 'User settings removed' }
 Remove-Item $env:NEXVARY_PACKAGE_SMOKE
 Remove-Item $sentinel

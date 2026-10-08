@@ -18,7 +18,8 @@ local inbox, reports, optional PC/SC reader enumeration and evidence profiles.
 AT/SIM READY and SELECT MF `6A86` evidence; E153/MF190S have label evidence.
 No new physical-device test was performed during automated development.
 ModemUsimBackend is implemented locally with consent/scoped authorization, but
-remote WiFi-Call broker integration, real AKA, ePDG/IPsec, IMS and calls are not
+a private opt-in mTLS bridge/client is implemented and software tested. Production
+WiFi-Call broker integration, real AKA, ePDG/IPsec, IMS and calls are not
 verified. QMI/MBIM control, PC/SC APDU, inbound Arabic PDU decoding and automatic
 cellular-data dialing remain unimplemented.
 

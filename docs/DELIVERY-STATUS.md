@@ -18,6 +18,8 @@
 - Network signal/registration/operator/APN/context queries, explicit APN changes
   only after proving an inactive context, then verifying by read-back.
 - Extensible JSON evidence profiles for Huawei K3770/E153 and ZTE MF190S.
+- Opt-in private loopback mTLS bridge/client with pinned peers, scoped credentials,
+  deadlines, revocation and real TLS transport tests using synthetic AKA results.
 - In-process consent and authorization-gated ModemUsimBackend compatible with the
   WiFi-Call callable result contract. See USIM-INTEGRATION.md for integration limits.
 - JSON/CSV reports, optional PC/SC reader enumeration, branded Inno Setup packaging,
@@ -41,7 +43,8 @@ or GPU/driver test. No USB modem or SIM is attached to CI.
 - Real UCS2 send/delivery, inbound Arabic PDU decoding and modem SMS mode behavior.
 - EF_DIR and application access on each card; logical-channel AKA with operator
   challenge, entitlement and carrier identity. SELECT success does not prove AKA.
-- Secure remote broker pairing/mTLS/modem routing and live WiFi-Call integration.
+- Production certificate pairing, broker modem routing, user-facing AKA consent
+  and live WiFi-Call integration. Private mTLS transport itself is implemented.
 - QMI/MBIM command transports, PC/SC APDU operations and automatic cellular-data
   connection are not implemented; interface inventory is not operational support.
 - Real Windows 10/11 install/display-scaling checks, hardware unplug races and

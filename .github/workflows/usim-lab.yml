@@ -63,7 +63,7 @@ jobs:
       - run: python -m pip install -r requirements.txt pyinstaller==6.16.0 Pillow==11.3.0
       - run: python scripts/create_icon.py
       - name: Compile Windows portable desktop
-        run: pyinstaller --noconfirm --clean --onefile --windowed --name NEXVARY-USB-Studio --icon assets/nexvary-usb.ico --add-data "nexvary_usim_lab/profiles;nexvary_usim_lab/profiles" --add-data "docs/THIRD-PARTY-REVIEW.md;docs" --add-data "licenses;licenses" launcher.py
+        run: pyinstaller --noconfirm --clean --onefile --windowed --name NEXVARY-USB-Studio --icon assets/nexvary-usb.ico --hidden-import nexvary_usim_lab.usim_backend --hidden-import nexvary_usim_lab.secure_bridge --add-data "nexvary_usim_lab/profiles;nexvary_usim_lab/profiles" --add-data "docs/THIRD-PARTY-REVIEW.md;docs" --add-data "licenses;licenses" launcher.py
       - name: Install Inno Setup
         run: choco install innosetup --no-progress -y
       - name: Compile installer

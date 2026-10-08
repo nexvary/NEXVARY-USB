@@ -30,3 +30,7 @@ class AkaTests(unittest.TestCase):
         b=self.backend(authorization=Authorization(KEY,TOKEN,time.monotonic()-1))
         with self.assertRaises(LabError):b.authenticate(RAND,AUTN)
         with self.assertRaises(LabError):self.backend().authenticate('11',AUTN)
+
+    def test_optional_kc_is_discarded_from_contract(self):
+        data=b'\xdb\x04'+b'resp'+b'\x10'+b'c'*16+b'\x10'+b'i'*16+b'\x08'+b'k'*8
+        self.assertEqual(('72657370','63'*16,'69'*16,None),parse_aka(data))

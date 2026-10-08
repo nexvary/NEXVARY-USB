@@ -83,6 +83,7 @@ def parse_aka(data):
     if len(data)==16 and data[:2]==b'\xdc\x0e': return None,None,None,data[2:].hex().upper()
     if len(data)>=2 and data[0]==0xdb:
         n=data[1]; a=2+n; b=a+17
-        if 4<=n<=16 and len(data)==n+36 and data[a]==16 and data[b]==16:
-            return data[2:a].hex().upper(),data[a+1:b].hex().upper(),data[b+1:].hex().upper(),None
+        if 4<=n<=16 and len(data) in (n+36,n+45) and data[a]==16 and data[b]==16:
+            if len(data)==n+45 and data[n+36]!=8:raise LabError('Invalid optional AKA field.')
+            return data[2:a].hex().upper(),data[a+1:b].hex().upper(),data[b+1:b+17].hex().upper(),None
     raise LabError('Invalid AKA result structure.')
