@@ -8,6 +8,8 @@ on:
       - 'tests/**'
       - 'launcher.py'
       - 'requirements.txt'
+      - 'scripts/**'
+      - 'installer/**'
       - '.github/workflows/usim-lab.yml'
   pull_request:
     paths:
@@ -15,6 +17,8 @@ on:
       - 'tests/**'
       - 'launcher.py'
       - 'requirements.txt'
+      - 'scripts/**'
+      - 'installer/**'
       - '.github/workflows/usim-lab.yml'
 permissions:
   contents: read
@@ -39,6 +43,8 @@ jobs:
         run: python -m nexvary_usim_lab demo
       - name: Catalog smoke check
         run: python -m nexvary_usim_lab catalog
+      - name: Compile all Python modules
+        run: python -m compileall -q nexvary_usim_lab scripts
       - name: OS USB inventory smoke check
         run: python -m nexvary_usim_lab diagnose
       - name: Compile GUI and discovery
@@ -52,11 +58,27 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install build tools
-        run: python -m pip install -r requirements.txt pyinstaller==6.16.0
-      - name: Compile portable Windows app
-        run: pyinstaller --noconfirm --clean --onefile --windowed --name NEXVARY-USIM-Lab launcher.py
+        run: python -m pip install -r requirements.txt pyinstaller==6.16.0 Pillow==11.3.0
+      - name: Generate branded application icon
+        run: python scripts/create_icon.py
+      - name: Windows GUI smoke
+        run: python scripts/windows_ui_smoke.py
+      - name: Compile branded Windows desktop
+        run: pyinstaller --noconfirm --clean --onefile --windowed --name NEXVARY-USB-Studio --icon assets/nexvary-usb.ico launcher.py
       - uses: actions/upload-artifact@v4
         with:
-          name: NEXVARY-USIM-Lab-Windows
-          path: dist/NEXVARY-USIM-Lab.exe
+          name: NEXVARY-USB-Studio-Windows-Portable
+          path: dist/NEXVARY-USB-Studio.exe
+          if-no-files-found: error
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --no-progress -y
+      - name: Compile Windows installer
+        shell: pwsh
+        run: |
+          & 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe' 'installer/NEXVARY-USB.iss'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NEXVARY-USB-Studio-Windows-Installer
+          path: installer-output/NEXVARY-USB-Studio-Setup-v0.3.0.exe
           if-no-files-found: error
