@@ -7,8 +7,10 @@ function Get-TextAssociations {
     return ($values | ConvertTo-Json -Compress)
 }
 $associations = Get-TextAssociations
-$version = (& python -c 'from nexvary_usim_lab import __version__; print(__version__)').Trim()
-if ($version -notmatch '^\d+\.\d+\.\d+
+$version = [string](& python -c 'from nexvary_usim_lab import __version__; print(__version__)')
+$version = $version.Trim()
+if ($version -notmatch '^[0-9]+[.][0-9]+[.][0-9]+$') { throw 'Invalid project version for installer smoke test' }
+$installer = (Resolve-Path ("installer-output/NEXVARY-USB-Studio-Setup-v{0}.exe" -f $version)).Path
 $target = Join-Path $env:TEMP 'nexvary-usb-package-test'
 $settings = Join-Path $env:LOCALAPPDATA 'NEXVARY/USB-Studio'
 New-Item -ItemType Directory -Force -Path $settings | Out-Null
