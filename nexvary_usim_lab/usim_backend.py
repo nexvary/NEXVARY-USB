@@ -6,6 +6,7 @@ CCHO/CGLA logical channels and real carrier entitlement remain hardware gates.
 import re
 import time
 import secrets
+import threading
 from dataclasses import dataclass, field
 from .core import LabError
 from .device_operations import ATSession
@@ -27,7 +28,7 @@ class ModemUsimBackend:
             raise LabError('Missing scoped backend authorization.')
         self._port=port; self._key=device_key; self._aid=aid.upper()
         self._authorization=authorization; self._token=token; self._factory=factory
-        self._used=set(); self._count=0
+        self._used=set(); self._count=0; self._lock=threading.Lock()
     def __repr__(self): return '<ModemUsimBackend: private transient session>'
     def revoke(self):
         self._token=""
@@ -53,11 +54,14 @@ class ModemUsimBackend:
         if not all(isinstance(x,str) and re.fullmatch(r'[0-9A-Fa-f]{32}',x) for x in (rand,autn)):
             raise LabError('RAND and AUTN must each contain 16 bytes.')
         challenge=rand.upper()+autn.upper()
-        if challenge in self._used or self._count>=32: raise LabError('Duplicate challenge or session limit.')
-        self._used.add(challenge); self._count+=1
+        with self._lock:
+            self._authorize()
+            if challenge in self._used or self._count>=32: raise LabError('Duplicate challenge or session limit.')
+            self._used.add(challenge); self._count+=1
         with ATSession(self._port,factory=self._factory) as session:
             state,lines=session._command(f'AT+CCHO="{self._aid}"',6)
             channels=[x for x in lines if x.isdecimal()]
+            if state=='TIMEOUT': raise LabError('USIM logical channel timed out; support unknown. No automatic retry.')
             if state!='OK' or len(channels)!=1: raise LabError('USIM logical channel unavailable.')
             channel=int(channels[0])
             try:

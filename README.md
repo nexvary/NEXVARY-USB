@@ -1,3 +1,7 @@
+# NEXVARY USB Studio 0.7.0
+
+تحديث USIM Core مبني على أحدث 0.6.0: اكتشاف USIM/ISIM واختبار SELECT للتطبيقات المعلنة، معالجة مهلة ورفض البطاقة منفصلين، وحفظ أدلة K3770 الميدانية المنقحة. نجاح SELECT لا يثبت AKA. [تفاصيل التنفيذ والقيود](docs/USIM-CORE-v0.7.md).
+
 ## Windows 0.6.0: NEXVARY SIM Manager integration
 
 Reviewed owner APK: `com.nexvary.simmanager` 0.922.0. New eSIM Manager page

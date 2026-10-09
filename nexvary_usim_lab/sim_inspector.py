@@ -17,14 +17,19 @@ def tlvs(data):
         items.append((tag,data[offset:offset+length]));offset+=length
     return items
 
+class DirectoryFailure(LabError):
+    def __init__(self, status, message, sw=None):
+        super().__init__(message); self.status=status; self.sw=sw
+
 def _crsm(session,command):
     state,lines=session._command(command,6)
-    if state=='TIMEOUT':raise LabError('قراءة دليل تطبيقات SIM انتهت بمهلة.')
-    if state!='OK':raise LabError('المودم رفض قراءة EF_DIR.')
+    if state=='TIMEOUT':raise DirectoryFailure('TIMEOUT','قراءة دليل تطبيقات SIM انتهت بمهلة؛ لا يثبت عدم الدعم.')
+    if state!='OK':raise DirectoryFailure('MODEM_ERROR','المودم رفض قراءة EF_DIR.')
     matches=[re.fullmatch(r'\+CRSM:\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*"([A-Fa-f0-9]*)")?',x) for x in lines if x.startswith('+CRSM:')]
     if len(matches)!=1 or matches[0] is None:raise LabError('استجابة CRSM غير صحيحة.')
     m=matches[0];sw=(int(m[1]),int(m[2]));raw=m[3] or ''
-    if sw not in ((144,0),) and sw[0] not in (145,159):raise LabError(f'البطاقة رفضت EF_DIR: SW={sw[0]:02X}{sw[1]:02X}')
+    if any(not 0<=x<=255 for x in sw):raise LabError('رمز CRSM خارج حدود SW1/SW2.')
+    if sw not in ((144,0),) and sw[0] not in (145,159):raise DirectoryFailure('CARD_STATUS',f'البطاقة رفضت EF_DIR: SW={sw[0]:02X}{sw[1]:02X}',sw)
     if len(raw)%2 or len(raw)>1024:raise LabError('طول ملف SIM غير صحيح.')
     return bytes.fromhex(raw)
 
@@ -42,9 +47,9 @@ def applications(port,factory=None):
         found={}
         for index in range(1,9):
             try:record=_crsm(s,f'AT+CRSM=178,12032,{index},4,{record_length}')
-            except LabError:
-                if index==1:raise
-                break
+            except DirectoryFailure as exc:
+                if index>1 and exc.sw==(0x6a,0x83):break
+                raise
             for tag,value in tlvs(record):
                 if tag!=0x61:continue
                 for inner,aid in tlvs(value):

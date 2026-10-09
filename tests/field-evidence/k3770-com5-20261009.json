@@ -1,0 +1,96 @@
+{
+  "product": "NEXVARY USB Studio",
+  "version": "0.6.0",
+  "timestamp_utc": "2026-10-09T08:14:59+00:00",
+  "device": "COM5",
+  "simulated": false,
+  "readings": [
+    {
+      "name": "Connection",
+      "status": "OK",
+      "value": "OK",
+      "note": "Basic AT command channel"
+    },
+    {
+      "name": "Manufacturer",
+      "status": "OK",
+      "value": "huawei",
+      "note": "Identification only"
+    },
+    {
+      "name": "Model",
+      "status": "OK",
+      "value": "K3770",
+      "note": "Identification only"
+    },
+    {
+      "name": "Firmware",
+      "status": "OK",
+      "value": "21.023.04.00.11",
+      "note": "Identification only"
+    },
+    {
+      "name": "SIM status",
+      "status": "OK",
+      "value": "+CPIN: READY",
+      "note": "Read status; never submit a PIN"
+    },
+    {
+      "name": "ICCID",
+      "status": "TIMEOUT",
+      "value": "No complete reply within deadline",
+      "note": "Masked SIM identifier, if available"
+    },
+    {
+      "name": "Signal",
+      "status": "OK",
+      "value": "+CSQ: 19,0",
+      "note": "Cellular signal diagnostic"
+    },
+    {
+      "name": "Registration",
+      "status": "OK",
+      "value": "+CREG: 2,1 [location suppressed]",
+      "note": "Cellular registration diagnostic"
+    },
+    {
+      "name": "CSIM probe",
+      "status": "OK",
+      "value": "OK",
+      "note": "Test syntax response is not proof of USIM AKA"
+    },
+    {
+      "name": "CGLA probe",
+      "status": "TIMEOUT",
+      "value": "No complete reply within deadline",
+      "note": "Test syntax response is not proof of USIM AKA"
+    },
+    {
+      "name": "CCHO probe",
+      "status": "TIMEOUT",
+      "value": "No complete reply within deadline",
+      "note": "Test syntax response is not proof of USIM AKA"
+    },
+    {
+      "name": "CRSM probe",
+      "status": "OK",
+      "value": "OK",
+      "note": "Test syntax response is not proof of USIM AKA"
+    },
+    {
+      "name": "SIM EF ICCID",
+      "status": "READABLE",
+      "value": "READ access confirmed; card data suppressed",
+      "note": "File 2FE2 reached through AT+CRSM without PIN or modification"
+    },
+    {
+      "name": "APDU SELECT MF",
+      "status": "ACCEPTED",
+      "value": "SW=9000",
+      "note": "UICC_NO_FCP: تم اختيار الملف بنجاح. لا يثبت AKA."
+    }
+  ],
+  "disclaimer": "AT probes do not establish AKA, PC/SC, ePDG, IMS or calling support.",
+  "evidence_classification": "Owner-supplied physical-device report; not independently retested",
+  "source_sha256": "ea224d7d8a6e86f10eed63b28c0d97be2e2a66cf67f1261eed702c5fad0a3d21"
+}

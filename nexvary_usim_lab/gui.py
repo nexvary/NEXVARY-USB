@@ -203,7 +203,7 @@ class Workstation(QMainWindow):
             options=candidates(device,self.preferences.get(device.key))
             v.addWidget(label('منفذ AT المرشح: '+(options[0].device+' — يحتاج اختبار AT' if options else 'لا يوجد؛ افتح الفحص المتقدم'),'muted'))
             if previous:v.addWidget(label('آخر فحص في هذه الجلسة: '+previous.timestamp_utc,'muted',True))
-            v.addWidget(label('الشريحة: '+values.get('SIM status','لم تُفحص')+'\nFirmware: '+values.get('Firmware','لم يُقرأ')+'\nAPDU / USIM AKA: غير مثبت'))
+            v.addWidget(label('الشريحة: '+values.get('SIM status','لم تُفحص')+'\nFirmware: '+values.get('Firmware','لم يُقرأ')+'\nAPDU: '+values.get('APDU SELECT MF','لم يُفحص')+' • USIM AKA: غير مثبت'))
             self._actions(v,[(name,lambda d=device,f=fn:self._device_action(d,f),kind,accent) for name,fn,kind,accent in (
                 ('فحص الجهاز',self.run_probe,'scan',True),('معلومات الشريحة',lambda:self.show('sim'),'sim',False),
                 ('الرسائل',lambda:self.show('sms'),'sms',False),('الشبكة والاتصال',lambda:self.show('network'),'network',False),
@@ -393,16 +393,20 @@ class Workstation(QMainWindow):
         if not self._require_port() or not self._confirm('اختبار APDU','توافق على إرسال SELECT MF ثابت للقراءة فقط؟ لا يثبت AKA.'):return
         self._with_port('SELECT MF',select_master_file,self._show_reading)
     def check_applications(self):
-        from .sim_inspector import applications
-        if not self._require_port() or not self._confirm('تطبيقات SIM','توافق على قراءة دليل التطبيقات EF_DIR؟ لا تُقرأ مفاتيح أو هوية المشترك.'):
+        from .usim_core import NexvaryUsimCore
+        if not self._require_port() or not self._confirm('تطبيقات SIM','توافق على قراءة EF_DIR واختبار SELECT للتطبيقات المعلنة؟ لا تُرسل مصادقة أو أوامر تعديل.'):
             return
         def done(rr):
             readings=list(self.report.readings) if self.report else []
-            readings=[x for x in readings if x.name not in ('SIM application','SIM applications')]+rr
+            readings=[x for x in readings if x.name not in ('SIM application','SIM applications','USIM access','ISIM access','USIM AKA')]+rr
             if self.report:self.report.readings=readings
+            else:
+                from datetime import datetime, timezone
+                self.report=Report('NEXVARY USB Studio',__version__,datetime.now(timezone.utc).isoformat(),self.active_port,False,readings)
+                self.reports[self.selected.key]=self.report
             self._populate_readings(readings)
             self.card_label.setText('دليل التطبيقات لا يثبت المصادقة؛ راجع النتائج أدناه')
-        self._with_port('دليل تطبيقات SIM',applications,done)
+        self._with_port('NEXVARY USIM Core',lambda p:NexvaryUsimCore(p).inspect(consent=True),done)
     def _show_reading(self,r):
         self.card_label.setText(r.value+' — '+r.note)
         readings=list(self.report.readings) if self.report else []

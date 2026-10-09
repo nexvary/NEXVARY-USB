@@ -19,17 +19,55 @@
     "AT+CGMI",
     "AT+CGMM",
     "AT+CGMR",
-    "AT+CPIN?"
+    "AT+CPIN?",
+    "AT+CSQ",
+    "AT+CREG?",
+    "AT+CSIM (SELECT MF UICC_NO_FCP)",
+    "AT+CRSM (EF ICCID read on COM5)"
   ],
-  "apdu_result": "6A86 observed on original SELECT MF",
+  "apdu_result": "SELECT MF accepted SW=9000 using UICC_NO_FCP on COM5 and COM7 (owner field reports v0.6.0); previous 6A86 observation retained",
   "sim_usim_capability": "SIM READY; USIM AKA unverified",
   "known_limitations": [
     "Exact USB ID does not uniquely identify model",
-    "AKA / Arabic SMS / data connection not hardware verified"
+    "AKA / Arabic SMS / data connection not hardware verified",
+    "CCHO/CGLA/AT+CCID timed out on COM5/COM7; support unknown, not definitively unsupported",
+    "SELECT MF success does not establish USIM AID, AKA, ISIM, IMS or ePDG"
   ],
   "last_verified_evidence": {
-    "source": "owner-provided observation",
-    "date": "2026-10-08",
-    "classification": "reported physical evidence; not re-tested here"
-  }
+    "source": "owner-supplied device reports (sanitized fixtures tests/field-evidence)",
+    "date": "2026-10-09",
+    "classification": "physical results supplied by owner; not retested here"
+  },
+  "verified_test_evidence": [
+    {
+      "date": "2026-10-09T08:19:43+00:00",
+      "software_version": "0.6.0",
+      "port": "COM7",
+      "source_sha256": "b48df88b3d5e4666d63fdb460209f1eec6975df10e9c87cd0ce430c91e7ec8bc",
+      "apdu_select_mf": "9000 / UICC_NO_FCP",
+      "csim": "syntax probe OK",
+      "crsm": "syntax probe OK",
+      "ccho": "TIMEOUT, inconclusive",
+      "cgla": "TIMEOUT, inconclusive",
+      "at_ccid": "TIMEOUT, inconclusive",
+      "ef_iccid": "not independently recorded",
+      "aka": "not tested",
+      "classification": "Owner-supplied physical-device report; not independently retested"
+    },
+    {
+      "date": "2026-10-09T08:14:59+00:00",
+      "software_version": "0.6.0",
+      "port": "COM5",
+      "source_sha256": "ea224d7d8a6e86f10eed63b28c0d97be2e2a66cf67f1261eed702c5fad0a3d21",
+      "apdu_select_mf": "9000 / UICC_NO_FCP",
+      "csim": "syntax probe OK",
+      "crsm": "syntax probe OK",
+      "ccho": "TIMEOUT, inconclusive",
+      "cgla": "TIMEOUT, inconclusive",
+      "at_ccid": "TIMEOUT, inconclusive",
+      "ef_iccid": "READABLE via CRSM",
+      "aka": "not tested",
+      "classification": "Owner-supplied physical-device report; not independently retested"
+    }
+  ]
 }
