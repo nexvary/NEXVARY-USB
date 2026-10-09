@@ -1,3 +1,26 @@
+# NEXVARY USB Studio 0.8.2 — WiFi-Call capability evidence
+
+Windows **التقارير → دليل قدرات WiFi-Call** exports the current device report
+with independent AT, SIM-status, APDU, AKA, ePDG, IMS and voice/call stages.
+No new device command is sent by the GUI export. Syntax acknowledgments and
+SELECT MF never authorize calls or establish AKA; authentication/calling remain
+unverified in this diagnostic contract. Existing features and the private mTLS
+bridge are preserved.
+
+```bash
+python -m nexvary_usim_lab capabilities --port COM5 --export wifi-call-capabilities.json
+```
+
+The CLI adds the existing fixed SELECT MF test only with explicit `--consent`.
+No subscriber/authentication secrets are exported. There is one owner modem:
+Huawei K3770, firmware `21.023.04.00.11`, observed USB ID `12D1:14C9`.
+Earlier E153 references do not establish a second physical device.
+
+[Release details and verification limits](docs/RELEASE-0.8.2-AR.md) ·
+[Capability contract](docs/WIFI-CALL-CAPABILITY-CONTRACT.md)
+
+---
+
 # NEXVARY USB Studio 0.7.2 — K3770 diagnostic reliability
 
 The user-started comprehensive scan now evaluates read-only SIM-status and signal responses on each eligible AT port before choosing the most capable port. AT success alone is not evidence of SIM readiness. Diagnostics ports remain excluded by default. No PIN, SIM mutation, authentication, SMS or APN changes are sent by this selection process.

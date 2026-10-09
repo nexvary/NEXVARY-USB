@@ -1,10 +1,14 @@
-NEXVARY USB Studio 0.8.1
+NEXVARY USB Studio 0.8.2
 
 USB modem grouping, user-initiated AT and SIM diagnostics, network status,
 SMS (including received UCS2/GSM7 PDU), consented OS-managed data connection,
 and redacted reports. Full-color vector icons and Arabic RTL desktop.
 
-New: unified framed AT receiver, capability-aware port selection, card-ready
+New: WiFi-Call evidence export from Reports, separating AT/SIM/APDU from
+AKA, ePDG, IMS and voice/call verification without exposing SIM identifiers.
+The export does not authorize calls or perform authentication.
+
+Preserved: unified framed AT receiver, capability-aware port selection, card-ready
 checks, evidence-based K3770 CRSM ICCID reading and Arabic result explanations.
 Incomplete replies stop that session; no SMS/authentication automatic retries.
 
