@@ -25,6 +25,10 @@ jobs:
       - run: python -m pip install -r requirements.txt
       - name: Synthetic and reported-evidence regression tests
         run: python -m unittest discover -s tests -p 'test_*.py' -v
+      - name: Offline modem recovery safety regressions on Windows PowerShell 5.1
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: ./scripts/test_modem_recovery.ps1
       - name: Checkout reviewed independent WiFi-Call engine client
         uses: actions/checkout@v4
         with:
