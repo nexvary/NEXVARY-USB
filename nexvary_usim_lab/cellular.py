@@ -73,3 +73,43 @@ class CellularManager:
         raw=self._run(['mmcli','--output-keyvalue','--modem',modem])
         allowed=('modem.generic.state','modem.generic.state-failed-reason','modem.generic.access-technologies','modem.generic.signal-quality','modem.3gpp.registration-state')
         return '\n'.join(line for line in raw.splitlines() if line.split(':',1)[0].strip() in allowed)
+
+class RasDataManager:
+    """Windows legacy modem data: existing owner phonebook only, *99 data dial.
+
+    No phonebook creation, passwords on command lines or unscoped disconnect.
+    Vendor-private dialers and non-*99 data methods are outside this backend.
+    """
+    def __init__(self,runner=None,phonebook=None):
+        from pathlib import Path
+        self.runner=runner or subprocess.run
+        self.phonebook=Path(phonebook) if phonebook else Path(os.environ.get('APPDATA',''))/'Microsoft/Network/Connections/Pbk/rasphone.pbk'
+    def profiles(self):
+        import configparser
+        if not self.phonebook.is_absolute() or self.phonebook.is_symlink() or not self.phonebook.is_file():raise LabError('لا دفتر اتصال RAS خاص بالمستخدم؛ أنشئ ملف بيانات من إعدادات Windows أولًا.')
+        if self.phonebook.stat().st_size>1048576:raise LabError('Phonebook exceeds limit.')
+        raw=self.phonebook.read_bytes()
+        try:
+            text=raw.decode('utf-16') if raw.startswith((b'\xff\xfe',b'\xfe\xff')) else raw.decode('utf-8-sig')
+            parser=configparser.ConfigParser(interpolation=None,strict=False);parser.read_string(text)
+        except (UnicodeError,configparser.Error):raise LabError('تنسيق دفتر RAS غير مدعوم؛ لم يتغير شيء.') from None
+        result=[]
+        for name in parser.sections():
+            section=parser[name]
+            # *99 establishes a packet-data context, never an arbitrary telephone call/VPN.
+            if section.get('Type')=='1' and section.get('MEDIA','').lower()=='rastapi' and re.fullmatch(r'\*99(?:\*\*\*[1-9][0-9]?)?#',section.get('PhoneNumber','')):
+                if 1<=len(name)<=100 and not name.startswith('/') and not any(ord(c)<32 or c=='"' for c in name):result.append(name)
+        return result
+    def change(self,profile,connect=True,confirmed=False):
+        if not confirmed:raise LabError('اتصال RAS يحتاج موافقة صريحة؛ قد تُحتسب رسوم.')
+        if profile not in self.profiles():raise LabError('اختر ملف RAS موجودًا خاصًا ببيانات *99؛ لن نستخدم VPN أو رقم مكالمة.')
+        exe=os.path.join(os.environ.get('SystemRoot',r'C:\Windows'),'System32','rasdial.exe')
+        with lease('ras:'+profile):
+            args=[exe,profile]
+            if not connect:args.append('/DISCONNECT')
+            args.append('/PHONEBOOK:'+str(self.phonebook))
+            try:result=self.runner(args,shell=False,capture_output=True,timeout=60)
+            except (OSError,subprocess.TimeoutExpired):raise LabError('طلب RAS لم يُحسم؛ افحص اتصالات Windows قبل إعادة المحاولة.') from None
+            if result.returncode:raise LabError(f'رفض Windows اتصال RAS (رمز {result.returncode})؛ افحص التعريف وAPN وإعدادات الملف.')
+            # RAS completion code confirms the OS operation, not usable carrier internet.
+            return 'أكّد Windows '+('تشغيل' if connect else 'إيقاف')+' اتصال RAS المحدد؛ الوصول إلى الإنترنت يحتاج تحققًا فعليًا.'

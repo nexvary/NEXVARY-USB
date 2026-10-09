@@ -27,7 +27,11 @@ $env:NEXVARY_PACKAGE_SMOKE = Join-Path $env:TEMP 'nexvary-packaged-ui.json'
 Remove-Item $env:NEXVARY_PACKAGE_SMOKE -ErrorAction SilentlyContinue
 $p = Start-Process -FilePath $exe -PassThru
 if (!$p.WaitForExit(120000)) { Stop-Process -Id $p.Id; throw 'Packaged app timed out' }
-if ($p.ExitCode -ne 0 -or !(Test-Path $env:NEXVARY_PACKAGE_SMOKE)) { throw 'Packaged GUI failed to open all pages' }
+if ($p.ExitCode -ne 0 -or !(Test-Path $env:NEXVARY_PACKAGE_SMOKE)) {
+    $errorFile = $env:NEXVARY_PACKAGE_SMOKE + '.error'
+    if (Test-Path $errorFile) { Get-Content $errorFile | Write-Output }
+    throw 'Packaged GUI failed to open all pages'
+}
 if ((Get-TextAssociations) -ne $associations) { throw 'Text file associations changed' }
 $marker = Get-Content -Raw $env:NEXVARY_PACKAGE_SMOKE | ConvertFrom-Json
 if ($marker.version -ne '0.5.0' -or $marker.pages.Count -ne 6) { throw 'Packaged version/page marker invalid' }

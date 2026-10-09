@@ -23,9 +23,12 @@ allow-list. No raw QMI/MBIM command terminal is exposed.
 
 These are actual OS controller calls, tested with simulated command runners.
 A successful command is not proof of internet connectivity. No system profile,
-DNS or route is automatically created/deleted. Windows legacy serial-only
-Huawei/ZTE devices may need an existing RAS/vendor dialer: this release does
-not implement PPP/RAS dialing or replace their drivers. Raw libqmi/libmbim
+DNS or route is automatically created/deleted. Windows legacy serial-only Huawei/ZTE devices can use an existing owner RAS
+phonebook data profile (Type=1, MEDIA=rastapi, *99#/*99***CID# only). Explicit
+rasdial connect/disconnect is limited to that named entry; stored Windows
+credentials remain in Windows. No phonebook is created or edited. Vendor
+private dialers and other dialing methods are unsupported. Devices still need
+working Windows modem drivers. Raw libqmi/libmbim
 binary protocol drivers are not included. Existing profiles can permit roaming;
 review their configuration before consenting to a data connection.
 

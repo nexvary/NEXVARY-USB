@@ -51,3 +51,28 @@ class PcscTests(unittest.TestCase):
         modules={'smartcard.System':types.SimpleNamespace(readers=lambda:[Reader()]),'smartcard.ExclusiveConnectCardConnection':types.SimpleNamespace(ExclusiveConnectCardConnection=lambda x:x)}
         with patch.dict(sys.modules,modules):
             result=_operation('reader');self.assertIn('6A86',result);self.assertEqual([[0,164,0,4,2,63,0,0],'close'],self.calls)
+
+class RasTests(unittest.TestCase):
+    def test_data_only_existing_profile_and_scoped_disconnect(self):
+        import tempfile
+        from pathlib import Path
+        from nexvary_usim_lab.cellular import RasDataManager
+        with tempfile.TemporaryDirectory() as directory:
+            path=Path(directory)/'rasphone.pbk';path.write_text('[Modem Data]\nType=1\nMEDIA=rastapi\nPhoneNumber=*99***1#\n[VPN]\nType=2\nMEDIA=rastapi\nPhoneNumber=*99#\n[Voice]\nType=1\nMEDIA=rastapi\nPhoneNumber=1234567\n')
+            calls=[]
+            def runner(args,**kw):calls.append(args);return types.SimpleNamespace(returncode=0)
+            manager=RasDataManager(runner,path)
+            self.assertEqual(['Modem Data'],manager.profiles())
+            with self.assertRaises(LabError):manager.change('VPN',confirmed=True)
+            with self.assertRaises(LabError):manager.change('Modem Data')
+            manager.change('Modem Data',False,True)
+            self.assertEqual('Modem Data',calls[0][1]);self.assertIn('/DISCONNECT',calls[0]);self.assertEqual(1,len(calls));self.assertIn('/PHONEBOOK:'+str(path),calls[0])
+    def test_nonexistent_and_malformed_do_not_dial(self):
+        import tempfile
+        from pathlib import Path
+        from nexvary_usim_lab.cellular import RasDataManager
+        with tempfile.TemporaryDirectory() as directory:
+            path=Path(directory)/'rasphone.pbk';manager=RasDataManager(phonebook=path)
+            with self.assertRaises(LabError):manager.profiles()
+            path.write_bytes(b'\xffinvalid')
+            with self.assertRaises(LabError):manager.profiles()

@@ -15,7 +15,7 @@ from .core import Report, demo, probe, select_master_file, pcsc_readers, to_json
 from .catalog import load_profiles, model_from_text
 from .discovery import detect, to_diagnostic_json
 from .device_operations import ATSession
-from .cellular import CellularManager
+from .cellular import CellularManager, RasDataManager
 from .pcsc import run as pcsc_run
 from .grouping import group_devices, port_role, candidates
 from .port_discovery import discover_at, PortPreferences
@@ -253,10 +253,11 @@ class Workstation(QMainWindow):
         self.apn=QLineEdit();self.apn.setPlaceholderText('internet');self.apn.setLayoutDirection(Qt.LeftToRight);b.addWidget(self.apn)
         b.addWidget(button('حفظ APN بموافقتي',self.set_apn,'network'));v.addWidget(box)
         box,b=panel();b.addWidget(label('اتصال البيانات عبر خدمة النظام — قد تُحتسب رسوم','gold'))
+        self.data_backend=QComboBox();self.data_backend.addItems(['WWAN / NetworkManager','Windows RAS — مودم COM قديم']);b.addWidget(self.data_backend)
         self.data_interface=QLineEdit();self.data_interface.setPlaceholderText('واجهة WWAN في Windows أو جهاز GSM في Linux');b.addWidget(self.data_interface)
         self.data_profile=QLineEdit();self.data_profile.setPlaceholderText('اسم ملف Windows أو UUID ملف GSM في Linux');b.addWidget(self.data_profile)
         self._actions(b,[('واجهات النظام',self.data_inventory,'network',False),('ملفات الاتصال',self.data_profiles,'network',False),('تشغيل البيانات',lambda:self.data_change(True),'network',True),('إيقاف البيانات',lambda:self.data_change(False),'network',False)])
-        self.data_status=label('QMI/MBIM في Linux عبر NetworkManager/ModemManager؛ Windows عبر WWAN. لا يتم تشغيل مودم COM قديم تلقائيًا.','muted');b.addWidget(self.data_status);v.addWidget(box);v.addStretch()
+        self.data_status=label('QMI/MBIM في Linux عبر خدمات النظام؛ Windows عبر WWAN أو ملف RAS بيانات *99 موجود للمودم القديم. اختر الملف الذي يخص جهازك.','muted');b.addWidget(self.data_status);v.addWidget(box);v.addStretch()
 
     def _build_reports(self):
         v=self._heading('reports','تقرير الجهاز','تقرير أحدث فحص للجهاز المختار. لا يتضمن محتوى الرسائل أو أسرار المصادقة.')
@@ -366,11 +367,13 @@ class Workstation(QMainWindow):
         self._job('واجهات البيانات',lambda:CellularManager().inventory(),self.data_status.setText)
     def data_profiles(self):
         interface=self.data_interface.text().strip()
-        self._job('ملفات البيانات',lambda:CellularManager().profiles(interface),self.data_status.setText)
+        ras=self.data_backend.currentIndex()==1
+        self._job('ملفات البيانات',lambda:'\n'.join(RasDataManager().profiles()) if ras else CellularManager().profiles(interface),self.data_status.setText)
     def data_change(self,connect):
         interface=self.data_interface.text().strip();profile=self.data_profile.text().strip()
         if not self._confirm('اتصال البيانات',f"{'تشغيل' if connect else 'إيقاف'} اتصال الواجهة {interface} باستخدام {profile}؟ قد تُحتسب رسوم."):return
-        self._job('اتصال البيانات',lambda:CellularManager().change(interface,profile,connect,True),self.data_status.setText)
+        ras=self.data_backend.currentIndex()==1
+        self._job('اتصال البيانات',lambda:RasDataManager().change(profile,connect,True) if ras else CellularManager().change(interface,profile,connect,True),self.data_status.setText)
     def pcsc_select(self):
         def choose(names):
             if not names:QMessageBox.information(self,'PC/SC','لا قارئات متاحة.');return
