@@ -1,3 +1,6 @@
 pyserial==3.5
 PySide6==6.12.0
 # Optional PC/SC inventory: install pyscard separately.
+Pillow==11.3.0
+qrcode==8.2
+zxing-cpp==2.3.0

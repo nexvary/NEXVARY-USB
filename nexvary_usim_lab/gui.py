@@ -18,6 +18,7 @@ from .cellular import CellularManager, RasDataManager
 from .pcsc import run as pcsc_run
 from .grouping import group_devices, port_role, candidates
 from .port_discovery import discover_at, PortPreferences
+from .esim_integration import APK_IDENTITY, IntegrationError, parse_activation, qr_png, read_qr, read_recycling_csv
 from . import __version__
 
 DARK='#050507'; PANEL='#10090D'; FIELD='#141016'; SILVER='#C3CBD3'
@@ -128,7 +129,7 @@ class Workstation(QMainWindow):
         self.back_button=button('رجوع',self.back,'back');nav.addWidget(self.back_button)
         self.stack=QStackedWidget()
         menu=[('devices','الأجهزة','devices'),('sim','معلومات الشريحة','sim'),('sms','الرسائل','sms'),
-              ('network','الشبكة والاتصال','network'),('reports','التقارير','reports'),('about','النظام والتوافق','about')]
+              ('network','الشبكة والاتصال','network'),('esim','eSIM Manager','sim'),('reports','التقارير','reports'),('about','النظام والتوافق','about')]
         self.nav_titles={k:title for k,title,_ in menu}
         for key,title,kind in menu:
             b=button(title,lambda k=key:self.show(k),kind);b.setCheckable(True);b.setToolTip(title)
@@ -138,7 +139,7 @@ class Workstation(QMainWindow):
             scroll.setWidget(page);self.stack.addWidget(scroll);self.pages[key]=(scroll,page,v)
         nav.addStretch();self.side.setFixedWidth(195);body.addWidget(self.side);body.addWidget(self.stack,1);outer.addLayout(body,1)
         self.status_label=label('جاهز — لم تُختبر أجهزة في هذه الجلسة','muted');outer.addWidget(self.status_label)
-        for method in (self._build_devices,self._build_sim,self._build_sms,self._build_network,self._build_reports,self._build_about):method()
+        for method in (self._build_devices,self._build_sim,self._build_sms,self._build_network,self._build_esim,self._build_reports,self._build_about):method()
         self.show('devices',remember=False)
 
     def resizeEvent(self,event):
@@ -253,6 +254,71 @@ class Workstation(QMainWindow):
         self._actions(b,[('واجهات النظام',self.data_inventory,'network',False),('ملفات الاتصال',self.data_profiles,'network',False),('تشغيل البيانات',lambda:self.data_change(True),'network',True),('إيقاف البيانات',lambda:self.data_change(False),'network',False)])
         self.data_status=label('QMI/MBIM في Linux عبر خدمات النظام؛ Windows عبر WWAN أو ملف RAS بيانات *99 موجود للمودم القديم. اختر الملف الذي يخص جهازك.','muted');b.addWidget(self.data_status);v.addWidget(box);v.addStretch()
 
+    def _build_esim(self):
+        v=self._heading('esim','NEXVARY eSIM Manager','تكامل محلي مع تطبيق الهاتف 0.922.0: نقل كود LPA عبر QR واستيراد تقرير إعادة الاستخدام.')
+        box,b=panel()
+        b.addWidget(label('تطبيق الهاتف المراجع: com.nexvary.simmanager • 0.922.0','good',True))
+        b.addWidget(label('إدارة وتنزيل وتفعيل ملفات eSIM تجري عبر LPA مصرح به على الهاتف. هذا المسار لا يثبت نجاح التفعيل أو دعم المودم.','muted'))
+        b.addWidget(label('كود التفعيل سري — لا يُحفظ في تقارير التشخيص','gold'))
+        self.activation_input=QLineEdit();self.activation_input.setLayoutDirection(Qt.LeftToRight)
+        self.activation_input.setEchoMode(QLineEdit.Password);self.activation_input.setMaxLength(2048)
+        self.activation_input.setPlaceholderText('LPA:1$SM-DP+$MATCHING-ID');b.addWidget(self.activation_input)
+        self.activation_reveal=QCheckBox('إظهار الكود في هذه الجلسة')
+        self.activation_reveal.toggled.connect(lambda checked:self.activation_input.setEchoMode(QLineEdit.Normal if checked else QLineEdit.Password));b.addWidget(self.activation_reveal)
+        self.activation_status=label('أدخل كودًا تملكه أو استورد صورة QR محلية','muted');b.addWidget(self.activation_status)
+        self._actions(b,[('التحقق من صيغة الكود',self.validate_activation,'scan',False),('عرض QR لنقله للهاتف',self.show_activation_qr,'sim',True),('استيراد صورة QR',self.import_activation_qr,'sim',False),('مسح الكود من الجلسة',self.clear_activation,'refresh',False)])
+        b.addWidget(label('افتح ماسح QR في NEXVARY SIM Manager على الهاتف، ثم وافق على فتح LPA المتاح. لا تعرض QR أو ترسله لأي طرف آخر.','muted'));v.addWidget(box)
+        box,b=panel();b.addWidget(label('تقارير إعادة استخدام الشرائح','gold'))
+        b.addWidget(label('من الهاتف: صدّر nexvary_sim_recycling.csv ثم انقله محليًا. السجلات مستوردة من الهاتف وليست فحصًا فعليًا لأجهزة Windows.','muted'))
+        b.addWidget(button('استيراد تقرير الهاتف CSV',self.import_recycling_report,'reports'))
+        self.recycling_status=label('لم يُستورد تقرير','muted');b.addWidget(self.recycling_status)
+        self.recycling_table=table(['الدفعة','الكمية','تصنيف الهاتف','التقييم']);b.addWidget(self.recycling_table);v.addWidget(box);v.addStretch()
+
+    def validate_activation(self):
+        try:
+            activation=parse_activation(self.activation_input.text())
+            summary=activation.summary()
+            self.activation_status.setText('الصيغة صالحة • SM-DP+: '+summary['smdp_address']+' • معرّف التفعيل: '+summary['matching_id']+' • رمز تأكيد: '+('مطلوب' if summary['confirmation_required'] else 'غير مطلوب')+' • لم يُختبر التفعيل')
+            return activation
+        except IntegrationError as error:
+            self.activation_status.setText(str(error));return None
+
+    def clear_activation(self):
+        self.activation_input.clear();self.activation_reveal.setChecked(False)
+        self.activation_status.setText('مُسح الكود من حقول الجلسة — لا يُحفظ تلقائيًا')
+
+    def show_activation_qr(self):
+        activation=self.validate_activation()
+        if activation is None:return
+        if not self._confirm('عرض كود سري','أوافق على عرض كود التفعيل الذي أملكه لنقله إلى هاتفي. يمكن لمن يرى QR استخدام الكود.'):return
+        try:payload=qr_png(activation)
+        except IntegrationError as error:self.activation_status.setText(str(error));return
+        dialog=QDialog(self);dialog.setWindowTitle('نقل آمن محلي إلى NEXVARY SIM Manager')
+        layout=QVBoxLayout(dialog);layout.addWidget(label('امسح QR بتطبيق الهاتف. لا تلتقط لقطة شاشة تحتويه.','gold'))
+        image=QPixmap();image.loadFromData(payload,'PNG')
+        screen=self.screen().availableGeometry();side=max(180,min(460,screen.height()-220,screen.width()-100))
+        preview=QLabel();preview.setAlignment(Qt.AlignCenter);preview.setPixmap(image.scaled(side,side,Qt.KeepAspectRatio,Qt.FastTransformation));layout.addWidget(preview)
+        layout.addWidget(button('إغلاق ومسح الكود',dialog.accept,'back'))
+        dialog.exec();preview.clear();dialog.deleteLater();self.clear_activation()
+
+    def import_activation_qr(self):
+        path,_=QFileDialog.getOpenFileName(self,'استيراد QR محلي','','Images (*.png *.jpg *.jpeg *.bmp *.webp)')
+        if not path:return
+        try:
+            activation=read_qr(path);self.activation_input.setText(activation.qr_payload());self.activation_reveal.setChecked(False);self.validate_activation()
+        except (IntegrationError,OSError) as error:
+            self.activation_status.setText(str(error) if isinstance(error,IntegrationError) else 'تعذر فتح الصورة المحلية')
+
+    def import_recycling_report(self):
+        path,_=QFileDialog.getOpenFileName(self,'تقرير تطبيق الهاتف','','CSV (*.csv)')
+        if not path:return
+        try:
+            data=read_recycling_csv(path)
+            rows(self.recycling_table,[(r['batch'],r['quantity'],r['classification'],r['condition_score']) for r in data])
+            self.recycling_status.setText('تم استيراد '+str(len(data))+' دفعة من تقرير الهاتف — لم تُثبت على أجهزة Windows')
+        except (IntegrationError,OSError) as error:
+            self.recycling_status.setText(str(error) if isinstance(error,IntegrationError) else 'تعذر فتح التقرير المحلي')
+
     def _build_reports(self):
         v=self._heading('reports','تقرير الجهاز','تقرير أحدث فحص للجهاز المختار. لا يتضمن محتوى الرسائل أو أسرار المصادقة.')
         self._actions(v,[('تصدير JSON',lambda:self.export_report('json'),'reports',True),('تصدير CSV',lambda:self.export_report('csv'),'reports',False),('تقرير اكتشاف USB',self.export_usb,'devices',False)])
@@ -301,6 +367,7 @@ class Workstation(QMainWindow):
         try:callback(result);self.status_label.setText('اكتمل: '+title)
         except Exception:self.status_label.setText('تعذر عرض النتيجة؛ لا تُعتبر نجاحًا.')
     def closeEvent(self,event):
+        self.clear_activation()
         if self.busy:
             QMessageBox.information(self,'عملية جارية','انتظر انتهاء العملية قبل إغلاق البرنامج.');event.ignore()
         else:super().closeEvent(event)
@@ -454,7 +521,15 @@ def main():
             except LabError as exc:
                 if 'مهلة' in str(exc) or 'worker unavailable' in str(exc):raise
                 pcsc_check='native service unavailable; child returned safely'
-            Path(marker).write_text(json.dumps({'pages':opened,'version':__version__,'pcsc_child':pcsc_check,'color_icons':list(ICON_KINDS)}),encoding='utf-8')
+            import tempfile
+            with tempfile.TemporaryDirectory() as directory:
+                payload=parse_activation('LPA:1$example.invalid$SYNTHETIC-PACKAGE')
+                qr_path=Path(directory)/'synthetic-qr.png';qr_path.write_bytes(qr_png(payload))
+                if read_qr(qr_path).qr_payload()!=payload.qr_payload():raise RuntimeError('Packaged QR roundtrip failed')
+                csv_path=Path(directory)/'synthetic-report.csv'
+                csv_path.write_text('batch,quantity,classification,condition_score\n1,2,LAB_REUSE,80\n',encoding='utf-8')
+                if len(read_recycling_csv(csv_path))!=1:raise RuntimeError('Packaged CSV failed')
+            Path(marker).write_text(json.dumps({'esim_contract':'synthetic QR and CSV passed','pages':opened,'version':__version__,'pcsc_child':pcsc_check,'color_icons':list(ICON_KINDS)}),encoding='utf-8')
             ui.close()
             app.quit()
         QTimer.singleShot(1500,smoke)

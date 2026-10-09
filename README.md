@@ -1,3 +1,12 @@
+## Windows 0.6.0: NEXVARY SIM Manager integration
+
+Reviewed owner APK: `com.nexvary.simmanager` 0.922.0. New eSIM Manager page
+validates LPA codes, generates and reads QR locally, and imports the phone's
+recycling CSV reports. Codes stay out of diagnostic reports. Android profile
+provisioning still requires an authorized LPA; no live phone/AKA/carrier result
+is claimed. Full-color icons and the 0.5.1 black/neon-green/royal-red theme are
+preserved. See [review and contract](docs/ESIM-MANAGER-INTEGRATION.md).
+
 ## الإصدار 0.5.0
 
 قراءة SMS PDU العربي وGSM7، اتصال بيانات عبر خدمات النظام، SELECT PC/SC، وجسر USB يختاره محرك WiFi-Call صراحة. راجع [الوظائف وحدود التحقق](docs/REMAINING-FEATURES-v0.5.md). كل أدلة الأجهزة السابقة تبقى كما هي؛ لا إثبات AKA أو مكالمات جديدة.

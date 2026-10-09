@@ -58,6 +58,22 @@ scroll=ui.pages['sms'][0];scroll.ensureWidgetVisible(ui.sms_table);app.processEv
 assert ui.grab().save(str(out/f'1366x768-scale{scale:g}-sms-pdu-synthetic.png'))
 ui.show('network');scroll=ui.pages['network'][0];scroll.ensureWidgetVisible(ui.data_status);app.processEvents()
 assert ui.grab().save(str(out/f'1366x768-scale{scale:g}-network-data-controls-no-hardware.png'))
+# Foreground offline contract: synthetic credential is masked, never screenshot raw QR.
+from nexvary_usim_lab.esim_integration import parse_activation, qr_png, read_qr
+from PySide6.QtWidgets import QLineEdit
+import tempfile
+ui.show('esim');ui.activation_input.setText('LPA:1$example.invalid$SYNTHETIC-SECRET')
+assert ui.activation_input.echoMode()==QLineEdit.Password
+assert ui.validate_activation() is not None
+assert 'SYNTHETIC-SECRET' not in ui.activation_status.text()
+with tempfile.TemporaryDirectory() as directory:
+    qr_path=Path(directory)/'synthetic.png'
+    qr_path.write_bytes(qr_png(parse_activation(ui.activation_input.text())))
+    assert read_qr(qr_path).matching_id_present
+ui.clear_activation();assert not ui.activation_input.text()
+ui.activation_status.setText('اختبار تكامل بصيغة اصطناعية — لا كود حقيقي ولا تفعيل على هاتف')
+app.processEvents()
+assert ui.grab().save(str(out/f'1366x768-scale{scale:g}-esim-contract-synthetic.png'))
 ui.show('devices');app.processEvents()
 # Back is exercised through an actual button click, not only direct methods.
 QTest.mouseClick(ui.nav['sim'],Qt.LeftButton);app.processEvents();QTest.mouseClick(ui.back_button,Qt.LeftButton);app.processEvents();assert ui.current_page=='devices'
