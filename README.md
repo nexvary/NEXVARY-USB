@@ -86,3 +86,20 @@ Synthetic device screenshots are explicitly marked and are not physical evidence
 - [Seven upstream projects and license review](docs/THIRD-PARTY-REVIEW.md)
 
 No arbitrary APDU listener, SIM key extraction, silent SMS or automatic dialing.
+
+
+## Version 0.8.0 — comparison of modem AT interfaces (software-level)
+
+The SIM page offers **مقارنة منافذ المودم**: a consented and bounded, read-only
+capability matrix per physically grouped modem, excluding Diagnostics by default.
+It probes AT, CPIN?, CSQ, CREG?, CSIM=? and CRSM=? on up to four candidate
+ports, records **only classified results** (no raw SIM, cell, ICCID, SMS or
+authentication material) and prefers a SIM-responsive interface over one that
+responds to AT alone. Test-syntax acknowledgments are explicitly *not* APDU or
+USIM AKA proof. Port results are not written to disk by this comparison.
+The SIM results table now explains transient modem errors in Arabic rather
+than claiming that an entire SIM is permanently unsupported.
+
+This is a software regression improvement, not verified on a physical K3770 in
+this commit. Hardware-specific access, CCHO/CGLA, USIM AKA and IMS/ePDG remain
+dependent on device, SIM and operator evidence.

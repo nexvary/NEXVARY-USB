@@ -17,6 +17,8 @@ from .device_operations import ATSession
 from .cellular import CellularManager, RasDataManager
 from .pcsc import run as pcsc_run
 from .grouping import group_devices, port_role, candidates
+from .capability_matrix import compare_ports
+from .ui_results import ui_reading
 from .port_discovery import discover_at, PortPreferences
 from .esim_integration import APK_IDENTITY, IntegrationError, parse_activation, qr_png, read_qr, read_recycling_csv
 from . import __version__
@@ -317,7 +319,7 @@ class Workstation(QMainWindow):
 
     def _build_sim(self):
         v=self._heading('sim','معلومات الشريحة','حالة SIM وPIN ومعرّف منقح. نجاح SELECT لا يثبت مصادقة USIM AKA.')
-        self._actions(v,[('فحص شامل',self.run_probe,'scan',True),('قراءة EF-ICCID',self.check_ef,'sim',False),('اختبار SELECT MF',self.check_apdu,'sim',False),('تطبيقات SIM / USIM',self.check_applications,'sim',False)])
+        self._actions(v,[('فحص شامل',self.run_probe,'scan',True),('مقارنة منافذ المودم',self.compare_modem_ports,'details',False),('قراءة EF-ICCID',self.check_ef,'sim',False),('اختبار SELECT MF',self.check_apdu,'sim',False),('تطبيقات SIM / USIM',self.check_applications,'sim',False)])
         self.card_label=label('الشريحة لم تُفحص','good');v.addWidget(self.card_label)
         self.sim_table=table(['الفحص','الحالة','النتيجة والتفسير']);v.addWidget(self.sim_table);v.addStretch()
 
@@ -471,7 +473,7 @@ class Workstation(QMainWindow):
     def refresh(self):
         self._job('اكتشاف USB وCOM',detect,self.display_inventory)
     def _populate_readings(self,readings):
-        rows(self.sim_table,[(r.name,r.status,r.value+' — '+r.note) for r in readings])
+        rows(self.sim_table,[ui_reading(r) for r in readings])
         rows(self.report_table,[(r.name,r.status,r.value) for r in readings])
     def run_probe(self):
         def done(report):
@@ -488,6 +490,39 @@ class Workstation(QMainWindow):
                 if self.current_page=='guide':self.show('guide')
             else:self.show('sim')
         self._with_port('فحص المودم والشريحة',probe,done,assess_sim=True)
+    def compare_modem_ports(self):
+        """One user-requested, read-only port comparison per selected device."""
+        if not self._require_port(): return
+        selected = self.selected
+        def done(result):
+            if self.selected is not selected:
+                self.status_label.setText('تغير اختيار الفلاشة؛ تجاهلنا نتائج الجهاز السابق.')
+                return
+            dlg=QDialog(self)
+            dlg.setWindowTitle('مقارنة قدرات منافذ المودم — فحص آمن')
+            dlg.resize(940,420)
+            layout=QVBoxLayout(dlg)
+            layout.addWidget(label(result.summary,'gold'))
+            status={'RESPONSIVE':'استجاب','ACK_ONLY':'استجابة صيغة فقط',
+                    'OK':'نجاح AT','REJECTED':'رُفض الأمر','UNSUPPORTED':'رُفض الأمر',
+                    'TIMEOUT':'انتهت المهلة','NOT_TESTED':'لم يُفحص',
+                    'UNAVAILABLE':'المنفذ غير متاح','NOISY':'ردود غير مكتملة',
+                    'IO_ERROR':'خطأ اتصال'}
+            t=table(['المنفذ','النوع','AT','حالة SIM','الإشارة','التسجيل',
+                     'CSIM صيغة','CRSM صيغة'])
+            rows(t,[(r.port,r.role,*[status.get(getattr(r,k),'غير محسوم')
+                for k in ('at','sim','signal','registration','csim_syntax','crsm_syntax')])
+                for r in result.ports])
+            t.setMinimumHeight(210)
+            layout.addWidget(t)
+            layout.addWidget(label('النتيجة تخص هذه الجلسة فقط. نجاح اختبار صيغة CSIM/CRSM لا يثبت APDU أو AKA. لن تُحفظ بيانات الشريحة.','muted'))
+            if result.suggested_port and result.sim_verified:
+                self.active_port=result.suggested_port
+                self.connection_label.setText(selected.title+' • منفذ SIM المرشح: '+self.active_port)
+            layout.addWidget(button('إغلاق',dlg.accept,'back'))
+            dlg.exec()
+        self._job('مقارنة منافذ AT والشريحة',lambda:compare_ports(selected),done)
+
     def check_ef(self):
         if not self._require_port() or not self._confirm('قراءة الشريحة','تأكيد ملكية الشريحة والموافقة على قراءة EF-ICCID دون عرض الرقم الكامل؟'):return
         self._with_port('EF-ICCID',lambda p:self._session(p,lambda s:s.sim_file_check()),self._show_reading)
