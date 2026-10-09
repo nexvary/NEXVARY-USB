@@ -121,7 +121,7 @@ assert ui.sim_table.rowCount()==0 and ui.report_table.rowCount()==0
 # Failed scan stays on the scan stage and must never appear as successful.
 ui.selected=ui.devices[0];ui.active_port='COM7';ui.guide_stage=2;ui._guide_update()
 failed=Report('NEXVARY USB Studio','synthetic','synthetic','COM7',True,[Reading('Connection','TIMEOUT','unavailable','Synthetic'),Reading('SIM status','TIMEOUT','unavailable','Synthetic')])
-with patch('nexvary_usim_lab.gui.probe',return_value=failed):
+with patch('nexvary_usim_lab.gui.discover_at',return_value=('COM7', [])),patch('nexvary_usim_lab.gui.probe',return_value=failed):
     ui.pages['guide'][0].ensureWidgetVisible(ui.guide_primary);app.processEvents();QTest.mouseClick(ui.guide_primary,Qt.LeftButton);await_guide_job()
 assert ui.guide_stage==2 and 'لم يكتمل' in ui.guide_result.text()
 print('Guided Qt flow PASS: five stages, selected device, successful/failed synthetic scan, function and return')
