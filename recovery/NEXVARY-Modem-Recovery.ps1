@@ -87,7 +87,7 @@ function Get-VerifiedInf([string]$Folder, [string[]]$HardwareIds) {
 }
 function Backup-Drivers($Devices, [string]$Destination) {
     $infs = @($Devices | ForEach-Object { $_.Inf } | Where-Object { $_ -match '^oem\d+\.inf$' } | Sort-Object -Unique)
-    foreach ($inf in $infs) { $null = Invoke-Pnp @('/export-driver', $inf, $Destination) }
+    foreach ($inf in $infs) { $null = Invoke-Pnp -Arguments @('/export-driver', $inf, $Destination) }
     return $infs.Count
 }
 function Backup-ModemCD([string]$Destination) {
@@ -156,7 +156,7 @@ function Invoke-Recovery {
     Write-Host 'Other connected Huawei devices matching the same INF may also receive this driver. Unplug those devices first.' -ForegroundColor Yellow
     if ((Read-Host 'Type REPAIR to approve; Enter cancels') -cne 'REPAIR') { Write-Host 'Cancelled. Backup retained.'; return }
     $reboot = $false
-    foreach ($path in $staged) { if ((Invoke-Pnp @('/add-driver', $path, '/install')) -eq 3010) { $reboot = $true } }
+    foreach ($path in $staged) { if ((Invoke-Pnp -Arguments @('/add-driver', $path, '/install')) -eq 3010) { $reboot = $true } }
     $after = @(Get-ModemInventory)
     Save-Inventory $after (Join-Path $base 'after.json')
     $after | Select-Object Name, Class, Code, Inf, Version | Format-Table -AutoSize | Out-Host
