@@ -163,7 +163,7 @@ class Workstation(QMainWindow):
         box,b=panel();self.guide_title=label('','title');b.addWidget(self.guide_title)
         self.guide_help=label('','muted');b.addWidget(self.guide_help)
         self.guide_devices=QComboBox();self.guide_devices.setMinimumHeight(40);b.addWidget(self.guide_devices)
-        self.guide_result=label('','good');b.addWidget(self.guide_result)
+        self.guide_result=label('','muted');b.addWidget(self.guide_result)
         self.guide_goals=QComboBox();self.guide_goals.setMinimumHeight(40)
         for title,key,_ in GOALS:self.guide_goals.addItem(title,key)
         self.guide_goals.currentIndexChanged.connect(self._guide_goal_help);b.addWidget(self.guide_goals)
@@ -353,7 +353,7 @@ class Workstation(QMainWindow):
     def _build_esim(self):
         v=self._heading('esim','NEXVARY eSIM Manager','تكامل محلي مع تطبيق الهاتف 0.922.0: نقل كود LPA عبر QR واستيراد تقرير إعادة الاستخدام.')
         box,b=panel()
-        b.addWidget(label('تطبيق الهاتف المراجع: com.nexvary.simmanager • 0.922.0','good',True))
+        b.addWidget(label('تطبيق الهاتف المراجع: com.nexvary.simmanager • 0.922.0','muted',True))
         b.addWidget(label('إدارة وتنزيل وتفعيل ملفات eSIM تجري عبر LPA مصرح به على الهاتف. هذا المسار لا يثبت نجاح التفعيل أو دعم المودم.','muted'))
         b.addWidget(label('كود التفعيل سري — لا يُحفظ في تقارير التشخيص','gold'))
         self.activation_input=QLineEdit();self.activation_input.setLayoutDirection(Qt.LeftToRight)
