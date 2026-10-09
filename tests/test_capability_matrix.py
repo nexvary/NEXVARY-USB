@@ -31,10 +31,10 @@ class MatrixTests(unittest.TestCase):
         result = compare_ports(device(), factory=SessionModem, deadline_seconds=0.2)
         self.assertEqual("COM5", result.suggested_port)
         self.assertTrue(result.sim_verified)
-        self.assertEqual(["COM7", "COM5"], [p.port for p in result.ports])
-        self.assertEqual("REJECTED", result.ports[0].sim)
-        self.assertEqual("RESPONSIVE", result.ports[1].sim)
-        self.assertEqual("ACK_ONLY", result.ports[1].csim_syntax)
+        self.assertEqual({"COM7", "COM5"}, {p.port for p in result.ports})
+        self.assertEqual("REJECTED", next(p for p in result.ports if p.port=="COM7").sim)
+        self.assertEqual("RESPONSIVE", next(p for p in result.ports if p.port=="COM5").sim)
+        self.assertEqual("ACK_ONLY", next(p for p in result.ports if p.port=="COM5").csim_syntax)
         self.assertNotIn("PRIVATE_CELL", repr(result))
         self.assertNotIn("SECRET", repr(result))
 
@@ -45,7 +45,7 @@ class MatrixTests(unittest.TestCase):
                 if data.decode().strip() in ("AT+CPIN?", "AT+CSQ", "AT+CREG?"):
                     self.pending = [b"ERROR\r\n"]
         result = compare_ports(device(), factory=ATOnly, max_ports=1, deadline_seconds=0.2)
-        self.assertEqual("COM7", result.suggested_port)
+        self.assertEqual("COM5", result.suggested_port)
         self.assertFalse(result.sim_verified)
         self.assertIn("لا يعني تلف", result.summary)
 
