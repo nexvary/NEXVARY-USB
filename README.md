@@ -1,3 +1,12 @@
+# NEXVARY USB Studio 0.7.2 — K3770 diagnostic reliability
+
+The user-started comprehensive scan now evaluates read-only SIM-status and signal responses on each eligible AT port before choosing the most capable port. AT success alone is not evidence of SIM readiness. Diagnostics ports remain excluded by default. No PIN, SIM mutation, authentication, SMS or APN changes are sent by this selection process.
+
+A modem ERROR is labeled REJECTED rather than UNSUPPORTED. Numeric CME/CMS errors are sanitized; they do not imply permanent incompatibility. Earlier owner-reported COM5/COM7 success remains historical evidence, never a new physical test of 0.7.2.
+
+When all candidate ports answer AT but do not return SIM data, SIM readiness is unverified. CSIM syntax OK is not proof of APDU authentication, USIM AKA, IMS, or Wi-Fi Calling.
+
+---
 # NEXVARY USB Studio 0.7.1
 
 يبدأ البرنامج الآن بمساعد استخدام من خمس مراحل، مع شرح النتائج بالعربية وزر التالي والمرحلة السابقة، وشروحات عملية داخل كل وظيفة. الوظائف المتقدمة محفوظة. [دليل الاستخدام](docs/USAGE-GUIDE-AR.md).
