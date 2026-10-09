@@ -26,7 +26,7 @@ class NewOperations(unittest.TestCase):
             self.assertIn('4',s.send_ucs2_sms('+201000000000','مرحبا',True,True))
         self.assertEqual(b'AT+CMGF=1\r',fake.sent[-1])
     def test_network_does_not_return_unsolicited_identity(self):
-        class Fake(DemoSerial):ANSWERS=dict(DemoSerial.ANSWERS,**{'AT+COPS?':('+CMT: 201000000000','+COPS: 0,0,"Test Carrier",2','OK')})
+        class Fake(DemoSerial):ANSWERS=dict(DemoSerial.ANSWERS,**{'AT+COPS?':('+CMT: 201000000000','synthetic private SMS body','+COPS: 0,0,"Test Carrier",2','OK')})
         with ATSession('COM7',factory=Fake) as s:
             result=s.network_info();self.assertIn('Test Carrier',str(result));self.assertNotIn('201000000000',str(result))
     def test_apn_requires_inactive_context_and_readback(self):

@@ -15,6 +15,8 @@ from .core import Report, demo, probe, select_master_file, pcsc_readers, to_json
 from .catalog import load_profiles, model_from_text
 from .discovery import detect, to_diagnostic_json
 from .device_operations import ATSession
+from .cellular import CellularManager
+from .pcsc import run as pcsc_run
 from .grouping import group_devices, port_role, candidates
 from .port_discovery import discover_at, PortPreferences
 from . import __version__
@@ -237,10 +239,10 @@ class Workstation(QMainWindow):
         self.number_input=QLineEdit();self.number_input.setLayoutDirection(Qt.LeftToRight);self.number_input.setPlaceholderText('+201xxxxxxxxx');b.addWidget(self.number_input)
         b.addWidget(label('نص الرسالة'));self.sms_input=QTextEdit();self.sms_input.setFixedHeight(110);b.addWidget(self.sms_input)
         self.ucs2=QCheckBox('UCS2 عربي — تجريبي، لم يُثبت على المودم');b.addWidget(self.ucs2)
-        self._actions(b,[('إرسال بموافقتي',self.send_sms,'sms',True),('قراءة المستلمة',self.read_sms,'sms',False)])
+        self._actions(b,[('إرسال بموافقتي',self.send_sms,'sms',True),('قراءة PDU المستلمة',self.read_sms,'sms',False),('قراءة Text القديمة',self.read_text_sms,'sms',False)])
         self.sms_status=label('محتوى الرسائل لا يدخل تقارير التشخيص','muted');b.addWidget(self.sms_status);v.addWidget(box)
         self.sms_table=table(['رقم','المرسل المنقح','الحالة','معاينة محلية']);v.addWidget(self.sms_table)
-        v.addWidget(label('قراءة صندوق الرسائل الحالية في وضع Text؛ فك الرسائل العربية المستلمة لم يُثبت.','muted'));v.addStretch()
+        v.addWidget(label('قراءة PDU: UCS2 العربي وGSM7؛ الأجزاء المتعددة تُعرض منفصلة. دعم المودم يحتاج اختبارًا فعليًا.','muted'));v.addStretch()
 
     def _build_network(self):
         v=self._heading('network','الشبكة والاتصال','الإشارة والتسجيل والمشغل وAPN. لا يُشغّل البرنامج اتصال بيانات تلقائيًا.')
@@ -250,7 +252,11 @@ class Workstation(QMainWindow):
         self.cid=QSpinBox();self.cid.setRange(1,16);self.cid.setPrefix('CID ');self.cid.setLayoutDirection(Qt.LeftToRight);b.addWidget(self.cid)
         self.apn=QLineEdit();self.apn.setPlaceholderText('internet');self.apn.setLayoutDirection(Qt.LeftToRight);b.addWidget(self.apn)
         b.addWidget(button('حفظ APN بموافقتي',self.set_apn,'network'));v.addWidget(box)
-        v.addWidget(label('QMI / MBIM: تُعرض واجهات Windows ضمن التفاصيل؛ التحكم المباشر واتصال البيانات غير منفذين.','muted'));v.addStretch()
+        box,b=panel();b.addWidget(label('اتصال البيانات عبر خدمة النظام — قد تُحتسب رسوم','gold'))
+        self.data_interface=QLineEdit();self.data_interface.setPlaceholderText('واجهة WWAN في Windows أو جهاز GSM في Linux');b.addWidget(self.data_interface)
+        self.data_profile=QLineEdit();self.data_profile.setPlaceholderText('اسم ملف Windows أو UUID ملف GSM في Linux');b.addWidget(self.data_profile)
+        self._actions(b,[('واجهات النظام',self.data_inventory,'network',False),('ملفات الاتصال',self.data_profiles,'network',False),('تشغيل البيانات',lambda:self.data_change(True),'network',True),('إيقاف البيانات',lambda:self.data_change(False),'network',False)])
+        self.data_status=label('QMI/MBIM في Linux عبر NetworkManager/ModemManager؛ Windows عبر WWAN. لا يتم تشغيل مودم COM قديم تلقائيًا.','muted');b.addWidget(self.data_status);v.addWidget(box);v.addStretch()
 
     def _build_reports(self):
         v=self._heading('reports','تقرير الجهاز','تقرير أحدث فحص للجهاز المختار. لا يتضمن محتوى الرسائل أو أسرار المصادقة.')
@@ -264,7 +270,7 @@ class Workstation(QMainWindow):
             b.addWidget(label(name+' • '+profile['sim_usim_capability'],'gold'))
             b.addWidget(label(profile['last_verified_evidence']['classification'],'muted'))
         b.addWidget(label('ModemUsimBackend: منفذ AKA محلي بالموافقة والتفويض؛ لا خدمة APDU عامة. تشغيله مع WiFi-Call والشبكة يحتاج أدلة أجهزة ومشغل.','muted'))
-        v.addWidget(box);self._actions(v,[('فحص قارئات PC/SC',self.read_pcsc,'sim',True),('محاكاة منفصلة',self.show_demo,'scan',False)]);v.addStretch()
+        v.addWidget(box);self._actions(v,[('فحص قارئات PC/SC',self.read_pcsc,'sim',True),('SELECT عبر PC/SC',self.pcsc_select,'sim',False),('محاكاة منفصلة',self.show_demo,'scan',False)]);v.addStretch()
 
     def _require_port(self):
         if not self.selected:
@@ -354,6 +360,27 @@ class Workstation(QMainWindow):
         def done(items):
             rows(self.sms_table,[(x['index'],x['sender'],x['status'],x['preview']) for x in items]);self.sms_status.setText(f'{len(items)} رسالة مقروءة محليًا')
         self._with_port('قراءة SMS',lambda p:self._session(p,lambda s:s.inbox()),done)
+    def read_text_sms(self):
+        self._with_port('قراءة Text',lambda p:self._session(p,lambda s:s.text_inbox()),lambda items:rows(self.sms_table,[(x['index'],x['sender'],x['status'],x['preview']) for x in items]))
+    def data_inventory(self):
+        self._job('واجهات البيانات',lambda:CellularManager().inventory(),self.data_status.setText)
+    def data_profiles(self):
+        interface=self.data_interface.text().strip()
+        self._job('ملفات البيانات',lambda:CellularManager().profiles(interface),self.data_status.setText)
+    def data_change(self,connect):
+        interface=self.data_interface.text().strip();profile=self.data_profile.text().strip()
+        if not self._confirm('اتصال البيانات',f"{'تشغيل' if connect else 'إيقاف'} اتصال الواجهة {interface} باستخدام {profile}؟ قد تُحتسب رسوم."):return
+        self._job('اتصال البيانات',lambda:CellularManager().change(interface,profile,connect,True),self.data_status.setText)
+    def pcsc_select(self):
+        def choose(names):
+            if not names:QMessageBox.information(self,'PC/SC','لا قارئات متاحة.');return
+            dialog=QDialog(self);dialog.setWindowTitle('اختيار قارئ PC/SC');v=QVBoxLayout(dialog);combo=QComboBox();combo.addItems(names);v.addWidget(combo)
+            def execute():
+                reader=combo.currentText()
+                if not self._confirm('SELECT MF',f'اختبار قراءة SELECT MF على {reader}؟ لا يثبت AKA.'):return
+                dialog.accept();self._job('PC/SC SELECT',lambda:pcsc_run(reader,True),lambda result:QMessageBox.information(self,'PC/SC',result))
+            v.addWidget(button('اختبار SELECT',execute,'sim'));v.addWidget(button('رجوع',dialog.reject,'back'));dialog.exec()
+        self._job('PC/SC',pcsc_run,choose)
     def send_sms(self):
         if not self._require_port():return
         number=self.number_input.text().strip();body=self.sms_input.toPlainText();ucs2=self.ucs2.isChecked()
@@ -368,7 +395,8 @@ class Workstation(QMainWindow):
         if not self._confirm('تعديل APN',f'تغيير السياق {cid} إلى {apn}؟ لا يتم تشغيل اتصال بيانات.'):return
         self._with_port('حفظ APN',lambda p:self._session(p,lambda s:s.set_apn(cid,apn,True)),lambda result:QMessageBox.information(self,'APN',result))
     def read_pcsc(self):
-        self._job('PC/SC',pcsc_readers,lambda data:QMessageBox.information(self,'PC/SC',('المكتبة متاحة' if data[0] else 'pyscard غير مثبتة')+'\n'+('\n'.join(data[1]) or 'لا قارئات متاحة')))
+        self._job('PC/SC',pcsc_run,lambda data:QMessageBox.information(self,'PC/SC','\n'.join(data) or 'لا قارئات متاحة'))
+
     def show_demo(self):
         def done(r):
             self.selected=None;self.active_port=None;self.report=r;self._populate_readings(r.readings)

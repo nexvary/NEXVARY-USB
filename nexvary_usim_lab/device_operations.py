@@ -82,6 +82,7 @@ class ATSession:
         deadline = time.monotonic() + duration
         lines = []
         total = 0
+        urc_body = False
         while time.monotonic() < deadline:
             chunk = self._wire.readline()
             if not chunk:
@@ -91,6 +92,9 @@ class ATSession:
                 raise LabError("Modem response exceeded the safety limit.")
             line = chunk.decode("ascii", errors="replace").strip()
             if not line:
+                continue
+            if urc_body:
+                urc_body = False
                 continue
             if prompt and ">" in line:
                 return "PROMPT", lines
@@ -102,8 +106,9 @@ class ATSession:
             if unsolicited and not (expected and line.startswith(expected)):
                 if len(self.events) < 64:
                     self.events.append('UNSOLICITED')  # no raw event content retained
+                urc_body = line.startswith(('+CMT:', '+CDS:'))
                 continue
-            lines.append(line[:400])
+            lines.append(line[:1024])
             if len(lines) > 200:
                 raise LabError("Unbounded modem traffic.")
         return "TIMEOUT", lines
@@ -140,6 +145,42 @@ class ATSession:
         return Reading("Signal", state, "Signal query unavailable", "Read-only")
 
     def inbox(self, max_messages: int = 30) -> list[dict[str,str]]:
+        """PDU receive path; preserves modem mode and masks addresses locally."""
+        from .pdu import deliver
+        if type(max_messages) is not int or not 1 <= max_messages <= 100:
+            raise LabError('Invalid SMS message count.')
+        state, lines = self._command('AT+CMGF?', 4)
+        mode = next((re.fullmatch(r'\+CMGF:\s*([01])', x) for x in lines if x.startswith('+CMGF:')), None)
+        if state != 'OK' or not mode:
+            raise LabError('تعذر حفظ وضع الرسائل الحالي؛ لم يتغير شيء.')
+        original = mode.group(1)
+        try:
+            state, _ = self._command('AT+CMGF=0', 4)
+            if state != 'OK': raise LabError('المودم لا يدعم قراءة PDU؛ اختر قراءة Text القديمة.')
+            state, lines = self._command('AT+CMGL=4', 15)
+            if state != 'OK': raise LabError('لم تكتمل قراءة صندوق PDU.')
+            data=[]; pending=None
+            for line in lines:
+                match=re.fullmatch(r'\+CMGL:\s*(\d+),\s*([0-4]),.*?,\s*(\d+)',line)
+                if match:
+                    pending=match.groups();continue
+                if pending and re.fullmatch('[A-Fa-f0-9]+',line):
+                    index,status,length=pending;pending=None
+                    if status not in ('0','1'):continue
+                    try:
+                        decoded=deliver(line,int(length));part=decoded['part']
+                        state_text='REC UNREAD' if status=='0' else 'REC READ'
+                        if part:state_text+=f" — جزء {part['sequence']}/{part['total']}"
+                        data.append(dict(index=index,status=state_text,sender=mask_identifier(decoded['sender']),preview=decoded['text'][:150]))
+                    except LabError:
+                        data.append(dict(index=index,status='PDU غير مدعوم أو تالف',sender='—',preview='لم نفترض نص الرسالة.'))
+                    if len(data)>=max_messages:break
+            return data
+        finally:
+            state,_=self._command('AT+CMGF='+original,4)
+            if state!='OK':raise LabError('تعذر استعادة وضع الرسائل؛ افحص إعدادات المودم.')
+
+    def text_inbox(self, max_messages: int = 30) -> list[dict[str,str]]:
         """Local read of received SMS, never included in general reports."""
         if not 1 <= max_messages <= 100:
             raise LabError("Invalid SMS message count.")

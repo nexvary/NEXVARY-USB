@@ -7,7 +7,7 @@ function Get-TextAssociations {
     return ($values | ConvertTo-Json -Compress)
 }
 $associations = Get-TextAssociations
-$installer = (Resolve-Path 'installer-output/NEXVARY-USB-Studio-Setup-v0.4.0.exe').Path
+$installer = (Resolve-Path 'installer-output/NEXVARY-USB-Studio-Setup-v0.5.0.exe').Path
 $target = Join-Path $env:TEMP 'nexvary-usb-package-test'
 $settings = Join-Path $env:LOCALAPPDATA 'NEXVARY/USB-Studio'
 New-Item -ItemType Directory -Force -Path $settings | Out-Null
@@ -30,7 +30,7 @@ if (!$p.WaitForExit(120000)) { Stop-Process -Id $p.Id; throw 'Packaged app timed
 if ($p.ExitCode -ne 0 -or !(Test-Path $env:NEXVARY_PACKAGE_SMOKE)) { throw 'Packaged GUI failed to open all pages' }
 if ((Get-TextAssociations) -ne $associations) { throw 'Text file associations changed' }
 $marker = Get-Content -Raw $env:NEXVARY_PACKAGE_SMOKE | ConvertFrom-Json
-if ($marker.version -ne '0.4.0' -or $marker.pages.Count -ne 6) { throw 'Packaged version/page marker invalid' }
+if ($marker.version -ne '0.5.0' -or $marker.pages.Count -ne 6) { throw 'Packaged version/page marker invalid' }
 # Upgrade using identical AppId, then uninstall; no outside directory is removed.
 $p = Start-Process -FilePath $installer -ArgumentList $args -Wait -PassThru
 if ($p.ExitCode -ne 0) { throw 'Upgrade failed' }
@@ -42,4 +42,4 @@ if (!(Test-Path $sentinel)) { throw 'User settings removed' }
 Remove-Item $env:NEXVARY_PACKAGE_SMOKE
 Remove-Item $sentinel
 Remove-Item Env:NEXVARY_PACKAGE_SMOKE
-Write-Output 'Packaging PASS: 0.3.1 install, 0.4.0 upgrade, packaged GUI, repeat upgrade, uninstall, settings and file associations preserved'
+Write-Output 'Packaging PASS: 0.3.1 install, 0.5.0 upgrade, packaged GUI, repeat upgrade, uninstall, settings and file associations preserved'

@@ -9,13 +9,19 @@ from .discovery import detect, to_diagnostic_json
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="NEXVARY USB-USIM Lab — read-only local diagnostics")
-    parser.add_argument("action", nargs="?", choices=("gui", "ports", "pcsc", "probe", "demo", "select-mf", "catalog", "diagnose"), default="gui")
+    parser.add_argument("action", nargs="?", choices=("gui", "ports", "pcsc", "probe", "demo", "select-mf", "catalog", "diagnose", "bridge"), default="gui")
     parser.add_argument("--port", help="Explicit modem serial port, for probe only")
     parser.add_argument("--baudrate", type=int, default=115200)
     parser.add_argument("--export", help="Optional .json or .csv redacted report")
     parser.add_argument("--consent", action="store_true", help="Explicitly consent to the fixed on-card SELECT MF test")
+    parser.add_argument("--config", help="Private bridge session configuration")
     args = parser.parse_args(argv)
     try:
+        if args.action == "bridge":
+            if not args.config or not args.consent: parser.error("bridge requires --config and --consent")
+            from .bridge_session import serve
+            serve(args.config,args.consent)
+            return 0
         if args.action == "gui":
             from .gui import main as start_gui
             start_gui()
@@ -71,6 +77,9 @@ def main(argv=None):
             print("Redacted report saved:", path)
         print(to_json(report))
         return 0
+    except (OSError, ValueError):
+        print("Operation unavailable: check private configuration and system access.", file=sys.stderr)
+        return 2
     except LabError as exc:
         print(f"Diagnostic unavailable: {exc}", file=sys.stderr)
         return 2

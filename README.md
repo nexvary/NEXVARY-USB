@@ -1,4 +1,8 @@
-# NEXVARY USB Studio 0.4.0
+## الإصدار 0.5.0
+
+قراءة SMS PDU العربي وGSM7، اتصال بيانات عبر خدمات النظام، SELECT PC/SC، وجسر USB يختاره محرك WiFi-Call صراحة. راجع [الوظائف وحدود التحقق](docs/REMAINING-FEATURES-v0.5.md). كل أدلة الأجهزة السابقة تبقى كما هي؛ لا إثبات AKA أو مكالمات جديدة.
+
+# NEXVARY USB Studio 0.5.0
 
 Arabic RTL USB modem workstation for Windows, with Linux CLI/desktop support.
 Upgraded from the existing 0.3.1 code; device operations are preserved and extended.
