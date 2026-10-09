@@ -51,6 +51,6 @@ class CoreTests(unittest.TestCase):
     def test_field_reports_retained_with_no_location(self):
         files=list(Path(__file__).with_name('field-evidence').glob('*.json'));self.assertEqual(2,len(files))
         for path in files:
-            raw=path.read_text();d=json.loads(raw);self.assertIs(False,d['simulated']);self.assertEqual('0.6.0',d['version']);rows={r['name']:r for r in d['readings']}
+            raw=path.read_text(encoding="utf-8");d=json.loads(raw);self.assertIs(False,d['simulated']);self.assertEqual('0.6.0',d['version']);rows={r['name']:r for r in d['readings']}
             self.assertEqual('SW=9000',rows['APDU SELECT MF']['value']);self.assertEqual('TIMEOUT',rows['CCHO probe']['status']);self.assertNotIn('007ECF',raw);self.assertNotIn('A10F',raw)
             if d['device']=='COM7':self.assertNotIn('SIM EF ICCID',rows)
