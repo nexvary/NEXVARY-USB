@@ -4,9 +4,8 @@ import json
 import queue
 import threading
 from pathlib import Path
-from PySide6.QtCore import Qt, QTimer, QSize, QByteArray, QEvent, QCoreApplication
-from PySide6.QtGui import QIcon, QPixmap, QPainter, QColor, QFontDatabase, QFont
-from PySide6.QtSvg import QSvgRenderer
+from PySide6.QtCore import Qt, QTimer, QSize, QEvent, QCoreApplication
+from PySide6.QtGui import QIcon, QPixmap, QFontDatabase, QFont
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
     QHBoxLayout, QGridLayout, QLabel, QPushButton, QFrame, QScrollArea,
     QStackedWidget, QTableWidget, QTableWidgetItem, QHeaderView, QFileDialog,
@@ -21,22 +20,11 @@ from .grouping import group_devices, port_role, candidates
 from .port_discovery import discover_at, PortPreferences
 from . import __version__
 
-DARK='#0C1319'; PANEL='#15232E'; FIELD='#1B2D3B'; SILVER='#B5BEC6'
-BLUE='#6A9BD0'; GREEN='#6EE6A0'; GOLD='#E7BE69'
+DARK='#050507'; PANEL='#10090D'; FIELD='#141016'; SILVER='#C3CBD3'
+BLUE='#39FF14'; GREEN='#39FF14'; GOLD='#FFD176'; RED='#A51036'
 
-# Original vector artwork, rendered at the device pixel ratio. No emoji fonts.
-PATHS={
- 'devices':'<rect x="7" y="3" width="18" height="29" rx="5"/><path d="M13 3V0h6v3M12 23h8M12 27h8"/>',
- 'sim':'<path d="M10 3h12l7 7v21H6V3z"/><rect x="11" y="14" width="13" height="11" rx="2"/><path d="M15 14v11M20 14v11M11 20h13"/>',
- 'sms':'<rect x="3" y="6" width="29" height="21" rx="4"/><path d="M4 8l14 10L31 8M7 27v5l7-5"/>',
- 'network':'<path d="M3 28V21h5v7M12 28V15h5v13M21 28V9h5v19M30 28V3h3v25"/>',
- 'reports':'<path d="M8 3h16l5 5v24H8zM23 3v7h6M13 16h11M13 21h11M13 26h8"/>',
- 'about':'<circle cx="18" cy="18" r="14"/><path d="M18 16v10M18 9v2"/>',
- 'scan':'<circle cx="15" cy="15" r="10"/><path d="M22 23l10 10M15 9v12M9 15h12"/>',
- 'back':'<path d="M10 7l12 11-12 11M21 18H3"/>',
- 'refresh':'<path d="M28 12a12 12 0 1 0 0 14M28 3v10H18"/>',
- 'details':'<path d="M5 8h27M5 18h27M5 28h27"/><circle cx="12" cy="8" r="3"/><circle cx="24" cy="18" r="3"/><circle cx="15" cy="28" r="3"/>',
-}
+ICON_DIR=Path(__file__).resolve().parent.parent/'assets'/'icons'/'oxygen'
+ICON_KINDS=('devices','sim','sms','network','reports','about','scan','back','refresh','details')
 
 def load_fonts():
     # Bundle fonts for native Windows, clean/offscreen runners and portable builds.
@@ -47,11 +35,12 @@ def load_fonts():
     QApplication.instance().setFont(QFont('Noto Sans Arabic',10))
 
 def icon(kind, color=BLUE):
-    svg=f'<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36"><g fill="none" stroke="{color}" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">{PATHS.get(kind,PATHS["about"])}</g></svg>'
-    pix=QPixmap(72,72);pix.fill(Qt.transparent)
-    painter=QPainter(pix);QSvgRenderer(QByteArray(svg.encode())).render(painter);painter.end()
-    pix.setDevicePixelRatio(2)
-    return QIcon(pix)
+    # Preserve the original full-color artwork; never tint raster icons.
+    path=ICON_DIR/((kind if kind in ICON_KINDS else 'about')+'.png')
+    result=QIcon(str(path))
+    if result.isNull():
+        raise RuntimeError('Bundled color icon missing: '+path.name)
+    return result
 
 def label(text, role=None, ltr=False):
     w=QLabel(text); w.setWordWrap(True); w.setTextFormat(Qt.PlainText)
@@ -63,7 +52,7 @@ def label(text, role=None, ltr=False):
 
 def button(text, callback, kind='scan', accent=False):
     b=QPushButton(icon(kind,GOLD if accent else BLUE),text)
-    b.setIconSize(QSize(22,22));b.setMinimumHeight(38);b.setCursor(Qt.PointingHandCursor)
+    b.setIconSize(QSize(28,28));b.setMinimumHeight(38);b.setCursor(Qt.PointingHandCursor)
     if accent:b.setObjectName('primary')
     b.clicked.connect(lambda _=False:callback())
     return b
@@ -93,24 +82,27 @@ def rows(t,data):
     t.resizeRowsToContents()
 
 STYLE='''
-QWidget { background:#0C1319; color:#ECF1F6; font-family:"Noto Sans Arabic","Noto Sans","Segoe UI"; font-size:13px; }
-QFrame#panel { background:#15232E; border:1px solid #344959; border-radius:12px; }
+QWidget { background:#050507; color:#ECF1F6; font-family:"Noto Sans Arabic","Noto Sans","Segoe UI"; font-size:13px; }
+QFrame#panel { background:#10090D; border:1px solid #83102D; border-radius:12px; }
 QFrame#panel QLabel, QFrame#panel QCheckBox { background:transparent; }
 QLabel#title { font-size:23px; font-weight:600; color:#F1F5F9; }
 QLabel#brand { font-size:25px; font-weight:700; letter-spacing:2px; color:#B5BEC6; }
-QLabel#muted { color:#B5BEC6; } QLabel#good { color:#6EE6A0; } QLabel#gold { color:#E7BE69; }
-QPushButton { background:#1B2D3B; border:1px solid #40586B; border-radius:7px; padding:7px 10px; text-align:right; }
-QPushButton:hover { border-color:#85ADDB; background:#253D4D; }
-QPushButton:checked { background:#27445A; border-color:#6A9BD0; }
-QPushButton#primary { color:#E7BE69; border-color:#8F784A; }
+QLabel#muted { color:#B5BEC6; } QLabel#good { color:#39FF14; } QLabel#gold { color:#E7BE69; }
+QPushButton { background:#171016; border:1px solid #6A1831; border-radius:7px; padding:7px 10px; text-align:right; }
+QPushButton:hover { border-color:#39FF14; background:#26101A; }
+QPushButton:checked { background:#351020; border-color:#39FF14; }
+QPushButton#primary { color:#E7BE69; border-color:#39FF14; }
 QPushButton:disabled { color:#697985; border-color:#253440; }
-QLineEdit,QTextEdit,QComboBox,QSpinBox { background:#101C25; border:1px solid #71808C; border-radius:5px; padding:8px; selection-background-color:#365C7A; }
-QTableWidget { background:#101C25; alternate-background-color:#192B38; gridline-color:#304352; border:1px solid #344959; }
-QHeaderView::section { background:#243747; color:#BBD3E9; padding:9px; border:0; }
-QScrollArea { border:0; } QScrollBar:vertical { background:#12212B; width:12px; }
-QScrollBar::handle:vertical { background:#567084; min-height:24px; border-radius:5px; }
+QLineEdit,QTextEdit,QComboBox,QSpinBox { background:#0A090D; border:1px solid #71808C; border-radius:5px; padding:8px; selection-background-color:#7D1230; }
+QTableWidget { background:#0A090D; alternate-background-color:#1A0C13; gridline-color:#40202B; border:1px solid #83102D; }
+QHeaderView::section { background:#30101C; color:#E8DDE2; padding:9px; border:0; }
+QScrollArea { border:0; } QScrollBar:vertical { background:#09070B; width:12px; }
+QScrollBar::handle:vertical { background:#A51036; min-height:24px; border-radius:5px; }
 QScrollBar::add-line:vertical,QScrollBar::sub-line:vertical { height:0; }
-QToolTip { color:#ECF1F6; background:#253D4D; border:1px solid #71808C; }
+QToolTip { color:#ECF1F6; background:#26101A; border:1px solid #71808C; }
+QFrame#panel:hover { border-color:#39FF14; }
+QPushButton#primary { background:#39FF14; color:#050507; border-color:#39FF14; }
+QLineEdit:focus,QTextEdit:focus,QComboBox:focus,QSpinBox:focus { border-color:#39FF14; }
 '''
 
 class Workstation(QMainWindow):
@@ -451,6 +443,8 @@ def main():
     ui=Workstation(auto_refresh=not bool(marker));ui.show()
     if marker:
         def smoke():
+            for kind in ICON_KINDS:
+                icon(kind)
             opened=[]
             for key in ui.pages:
                 ui.show(key);app.processEvents();opened.append(key)
@@ -460,7 +454,7 @@ def main():
             except LabError as exc:
                 if 'مهلة' in str(exc) or 'worker unavailable' in str(exc):raise
                 pcsc_check='native service unavailable; child returned safely'
-            Path(marker).write_text(json.dumps({'pages':opened,'version':__version__,'pcsc_child':pcsc_check}),encoding='utf-8')
+            Path(marker).write_text(json.dumps({'pages':opened,'version':__version__,'pcsc_child':pcsc_check,'color_icons':list(ICON_KINDS)}),encoding='utf-8')
             ui.close()
             app.quit()
         QTimer.singleShot(1500,smoke)

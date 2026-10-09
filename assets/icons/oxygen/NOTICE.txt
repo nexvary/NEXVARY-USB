@@ -1,0 +1,14 @@
+Unmodified full-color PNG artwork from KDE Oxygen Icons.
+Upstream: https://github.com/KDE/oxygen-icons
+License: LGPL-3.0-or-later. See licenses/Oxygen-COPYING.txt.
+Each filename maps to the corresponding 64x64 upstream icon:
+devices: devices/drive-removable-media-usb-pendrive.png
+sim: devices/media-flash-sd-mmc.png
+sms: status/mail-unread-new.png
+network: devices/network-wireless-connected-100.png
+reports: mimetypes/application-pdf.png
+about: status/dialog-information.png
+scan: actions/system-search.png
+back: actions/go-next.png (right-pointing arrow for Arabic RTL)
+refresh: actions/view-refresh.png
+details: actions/configure.png

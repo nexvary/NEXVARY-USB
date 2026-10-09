@@ -76,7 +76,7 @@ jobs:
       - run: python -m pip install -r requirements.txt pyinstaller==6.16.0 Pillow==11.3.0
       - run: python scripts/create_icon.py
       - name: Compile Windows portable desktop
-        run: pyinstaller --noconfirm --clean --onefile --windowed --name NEXVARY-USB-Studio --icon assets/nexvary-usb.ico --hidden-import nexvary_usim_lab.usim_backend --hidden-import nexvary_usim_lab.secure_bridge --add-data "nexvary_usim_lab/profiles;nexvary_usim_lab/profiles" --add-data "docs/THIRD-PARTY-REVIEW.md;docs" --add-data "licenses;licenses" --add-data "assets/fonts;assets/fonts" launcher.py
+        run: pyinstaller --noconfirm --clean --onefile --windowed --name NEXVARY-USB-Studio --icon assets/nexvary-usb.ico --hidden-import nexvary_usim_lab.usim_backend --hidden-import nexvary_usim_lab.secure_bridge --add-data "nexvary_usim_lab/profiles;nexvary_usim_lab/profiles" --add-data "docs/THIRD-PARTY-REVIEW.md;docs" --add-data "licenses;licenses" --add-data "assets/fonts;assets/fonts" --add-data "assets/icons;assets/icons" launcher.py
       - name: Install Inno Setup
         run: choco install innosetup --no-progress -y
       - name: Compile installer
@@ -95,13 +95,13 @@ jobs:
       - name: Versioned files and SHA256
         shell: pwsh
         run: |
-          Copy-Item dist/NEXVARY-USB-Studio.exe dist/NEXVARY-USB-Studio-v0.5.0.exe
-          Copy-Item installer-output/NEXVARY-USB-Studio-Setup-v0.5.0.exe dist/
-          Get-ChildItem dist/*v0.5.0.exe | ForEach-Object { $h = Get-FileHash $_.FullName -Algorithm SHA256; "$($h.Hash.ToLower())  $($_.Name)" } | Set-Content dist/SHA256SUMS.txt
+          Copy-Item dist/NEXVARY-USB-Studio.exe dist/NEXVARY-USB-Studio-v0.5.1.exe
+          Copy-Item installer-output/NEXVARY-USB-Studio-Setup-v0.5.1.exe dist/
+          Get-ChildItem dist/*v0.5.1.exe | ForEach-Object { $h = Get-FileHash $_.FullName -Algorithm SHA256; "$($h.Hash.ToLower())  $($_.Name)" } | Set-Content dist/SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: NEXVARY-USB-Studio-v0.5.0-Windows
+          name: NEXVARY-USB-Studio-v0.5.1-Windows
           path: |
-            dist/*v0.5.0.exe
+            dist/*v0.5.1.exe
             dist/SHA256SUMS.txt
           if-no-files-found: error
