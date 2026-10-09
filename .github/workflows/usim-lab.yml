@@ -25,6 +25,16 @@ jobs:
       - run: python -m pip install -r requirements.txt
       - name: Synthetic and reported-evidence regression tests
         run: python -m unittest discover -s tests -p 'test_*.py' -v
+      - name: Checkout reviewed independent WiFi-Call engine client
+        uses: actions/checkout@v4
+        with:
+          repository: nexvary/NEXVARY-WiFi-Call
+          ref: e2ae6cfcc40279d1eb926590cb61f02c35e58aa1
+          path: wifi-reference
+      - name: Actual private TLS between projects with synthetic AKA
+        env:
+          NEXVARY_WIFI_ENGINE: ${{ github.workspace }}/wifi-reference/server/engine
+        run: python scripts/check_engine_bridge.py
       - name: CLI smoke and compilation
         run: |
           python -m nexvary_usim_lab demo

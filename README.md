@@ -21,11 +21,12 @@ local inbox, reports, optional PC/SC reader enumeration and evidence profiles.
 **Hardware support is not established by compilation.** K3770 has owner-reported
 AT/SIM READY and SELECT MF `6A86` evidence; E153/MF190S have label evidence.
 No new physical-device test was performed during automated development.
-ModemUsimBackend is implemented locally with consent/scoped authorization, but
-a private opt-in mTLS bridge/client is implemented and software tested. Production
-WiFi-Call broker integration, real AKA, ePDG/IPsec, IMS and calls are not
-verified. QMI/MBIM control, PC/SC APDU, inbound Arabic PDU decoding and automatic
-cellular-data dialing remain unimplemented.
+ModemUsimBackend and the foreground private mTLS bridge are implemented with
+consent and scoped authorization. WiFi-Call engine selection is wired explicitly;
+real AKA, ePDG/IPsec, IMS and calls still require hardware/operator validation.
+Received Arabic PDU, fixed PC/SC SELECT and OS-managed cellular data are now
+implemented. QMI/MBIM is managed by the OS services; raw protocol drivers are
+not bundled. See the 0.5.0 feature document for supported paths and limitations.
 
 ## Run
 

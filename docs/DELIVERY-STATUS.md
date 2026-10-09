@@ -1,3 +1,5 @@
+Historical 0.4.0 report. For the current release see [0.5.0 operations](REMAINING-FEATURES-v0.5.md).
+
 # NEXVARY USB Studio 0.4.0 — implementation and verification
 
 ## Implemented
