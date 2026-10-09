@@ -1,4 +1,4 @@
-NEXVARY USB Studio 0.7.0
+NEXVARY USB Studio 0.7.1
 
 USB modem grouping, user-initiated AT and SIM diagnostics, network status,
 SMS (including received UCS2/GSM7 PDU), consented OS-managed data connection,

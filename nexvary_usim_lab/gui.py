@@ -20,6 +20,7 @@ from .grouping import group_devices, port_role, candidates
 from .port_discovery import discover_at, PortPreferences
 from .esim_integration import APK_IDENTITY, IntegrationError, parse_activation, qr_png, read_qr, read_recycling_csv
 from . import __version__
+from .usage_guide import STEPS, GOALS, connection_ok, explain_report
 
 DARK='#050507'; PANEL='#10090D'; FIELD='#141016'; SILVER='#C3CBD3'
 BLUE='#39FF14'; GREEN='#39FF14'; GOLD='#FFD176'; RED='#A51036'
@@ -116,6 +117,7 @@ class Workstation(QMainWindow):
         self.inventory=None;self.devices=[];self.selected=None;self.active_port=None
         self.report=None;self.reports={};self.preferences=PortPreferences()
         self.busy=False;self.current_page='devices';self.history=[];self.jobs=queue.Queue();self.nav={};self.pages={}
+        self.guide_stage=0;self.guide_active=False;self._guided_probe=False
         self._compose()
         self.timer=QTimer(self);self.timer.timeout.connect(self._drain);self.timer.start(40)
         if auto_refresh:QTimer.singleShot(0,self.refresh)
@@ -128,7 +130,7 @@ class Workstation(QMainWindow):
         body=QHBoxLayout();self.side=QWidget();nav=QVBoxLayout(self.side);nav.setContentsMargins(0,0,8,0)
         self.back_button=button('رجوع',self.back,'back');nav.addWidget(self.back_button)
         self.stack=QStackedWidget()
-        menu=[('devices','الأجهزة','devices'),('sim','معلومات الشريحة','sim'),('sms','الرسائل','sms'),
+        menu=[('guide','ابدأ خطوة بخطوة','scan'),('devices','الأجهزة','devices'),('sim','معلومات الشريحة','sim'),('sms','الرسائل','sms'),
               ('network','الشبكة والاتصال','network'),('esim','eSIM Manager','sim'),('reports','التقارير','reports'),('about','النظام والتوافق','about')]
         self.nav_titles={k:title for k,title,_ in menu}
         for key,title,kind in menu:
@@ -137,16 +139,94 @@ class Workstation(QMainWindow):
             scroll=QScrollArea();scroll.setWidgetResizable(True)
             page=QWidget();page.setMinimumWidth(310);v=QVBoxLayout(page);v.setContentsMargins(4,6,4,10);v.setSpacing(14)
             scroll.setWidget(page);self.stack.addWidget(scroll);self.pages[key]=(scroll,page,v)
-        nav.addStretch();self.side.setFixedWidth(195);body.addWidget(self.side);body.addWidget(self.stack,1);outer.addLayout(body,1)
+        nav.addStretch();self.side.setFixedWidth(195);self.side_scroll=QScrollArea();self.side_scroll.setWidgetResizable(True);self.side_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff);self.side_scroll.setWidget(self.side);self.side_scroll.setFixedWidth(211);body.addWidget(self.side_scroll);body.addWidget(self.stack,1);outer.addLayout(body,1)
         self.status_label=label('جاهز — لم تُختبر أجهزة في هذه الجلسة','muted');outer.addWidget(self.status_label)
-        for method in (self._build_devices,self._build_sim,self._build_sms,self._build_network,self._build_esim,self._build_reports,self._build_about):method()
-        self.show('devices',remember=False)
+        for method in (self._build_guide,self._build_devices,self._build_sim,self._build_sms,self._build_network,self._build_esim,self._build_reports,self._build_about):method()
+        self.pages['sim'][2].insertWidget(2,label('ابدأ بالفحص الشامل لمعرفة جاهزية الشريحة. قراءة EF-ICCID وفحص التطبيقات اختياريان للمستخدم المتقدم؛ لا يلزم تشغيلهما لقراءة الرسائل.','gold'))
+        self.pages['sim'][2].insertWidget(3,button('متابعة مراحل الاستخدام',self._guide_return,'back'))
+        self.pages['sms'][2].insertWidget(2,label('1. اضغط قراءة الوارد. 2. للإرسال أدخل الرقم الدولي والنص. 3. راجع الرقم والرسوم في الموافقة. لا تُرسل أي رسالة تلقائيًا.','gold'))
+        self.pages['sms'][2].insertWidget(3,button('متابعة مراحل الاستخدام',self._guide_return,'back'))
+        self.pages['network'][2].insertWidget(2,label('1. اقرأ حالة الشبكة. 2. اختر ملف اتصال بيانات موجودًا. 3. وافق على التشغيل بعد مراجعة رسوم المشغل. تغيير APN اختياري؛ استخدم القيمة التي يعطيها مشغلك.','gold'))
+        self.pages['network'][2].insertWidget(3,button('متابعة مراحل الاستخدام',self._guide_return,'back'))
+        self.pages['esim'][2].insertWidget(2,label('1. أدخل كود LPA الخاص بك. 2. اعرض QR وامسحه بالهاتف. 3. أكمل موافقة LPA على الهاتف. نقل الكود لا يعني نجاح التفعيل.','gold'))
+        self.pages['esim'][2].insertWidget(3,button('متابعة مراحل الاستخدام',self._guide_return,'back'))
+        self.pages['reports'][2].insertWidget(2,label('اختر حفظ JSON أو CSV بعد الفحص. التقرير منقح؛ لا يحفظ نصوص رسائلك. يمكنك إرساله للدعم لفهم الخطأ.','gold'))
+        self.pages['reports'][2].insertWidget(3,button('متابعة مراحل الاستخدام',self._guide_return,'back'))
+        self.show('guide',remember=False)
+
+    def _build_guide(self):
+        v=self._heading('guide','ابدأ خطوة بخطوة','اختر وظيفة واحدة في كل مرة. يمكنك الرجوع للمراحل أو فتح الأقسام المتقدمة في أي وقت.')
+        self.guide_progress=label('','gold');v.addWidget(self.guide_progress)
+        box,b=panel();self.guide_title=label('','title');b.addWidget(self.guide_title)
+        self.guide_help=label('','muted');b.addWidget(self.guide_help)
+        self.guide_devices=QComboBox();self.guide_devices.setMinimumHeight(40);b.addWidget(self.guide_devices)
+        self.guide_result=label('','good');b.addWidget(self.guide_result)
+        self.guide_goals=QComboBox();self.guide_goals.setMinimumHeight(40)
+        for title,key,_ in GOALS:self.guide_goals.addItem(title,key)
+        self.guide_goals.currentIndexChanged.connect(self._guide_goal_help);b.addWidget(self.guide_goals)
+        self.guide_goal_help=label('','muted');b.addWidget(self.guide_goal_help)
+        v.addWidget(box)
+        self.guide_primary=button('البحث عن الأجهزة',self._guide_next,'scan',True)
+        self.guide_previous=button('المرحلة السابقة',self._guide_previous,'back')
+        self.guide_resume=button('احفظ التقرير',lambda:self.export_report('json'),'reports')
+        v.addWidget(self.guide_primary);v.addWidget(self.guide_previous);v.addWidget(self.guide_resume)
+        self.guide_error=label('','muted');v.addWidget(self.guide_error);v.addStretch()
+        self._guide_update()
+
+    def _guide_goal_help(self,*_):
+        self.guide_goal_help.setText(GOALS[self.guide_goals.currentIndex()][2])
+
+    def _guide_update(self):
+        stage=self.guide_stage;title,help_=STEPS[stage]
+        self.guide_progress.setText(f'المرحلة {stage+1} من {len(STEPS)}')
+        self.guide_title.setText(title);self.guide_help.setText(help_)
+        self.guide_devices.setVisible(stage==1)
+        self.guide_result.setVisible(stage>=2)
+        self.guide_result.setText(explain_report(self.report) if stage>=2 else '')
+        self.guide_goals.setVisible(stage==3);self.guide_goal_help.setVisible(stage==3);self._guide_goal_help()
+        self.guide_primary.setText(('البحث عن الأجهزة','التالي: فحص الجهاز','بدء الفحص','افتح الوظيفة المختارة','ابدأ مع جهاز آخر')[stage])
+        self.guide_primary.setEnabled(not self.busy)
+        self.guide_previous.setEnabled(stage>0 and not self.busy)
+        self.guide_resume.setVisible(stage==4)
+
+    def _guide_previous(self):
+        if self.busy:return
+        self.guide_stage=max(0,self.guide_stage-1);self.guide_error.clear();self._guide_update()
+
+    def _guide_next(self):
+        if self.busy:return
+        self.guide_active=True;self.guide_error.clear()
+        if self.guide_stage==0:
+            self.refresh();self._guide_update();return
+        if self.guide_stage==1:
+            key=self.guide_devices.currentData()
+            device=next((d for d in self.devices if d.key==key),None)
+            if device is None:
+                self.guide_error.setText('لا توجد فلاشة مختارة؛ ارجع للبحث بعد توصيل الجهاز.');return
+            self._device_action(device,lambda:None)
+            # A new guided scan must never advance using a cached report.
+            self.report=None;self._populate_readings([]);self.guide_stage=2
+        elif self.guide_stage==2:
+            if self.selected is None:self.guide_stage=0
+            else:
+                self._guided_probe=True;self.run_probe();self._guide_update();return
+        elif self.guide_stage==3:
+            if not connection_ok(self.report):self.guide_stage=2
+            else:
+                self.guide_stage=4;self._guide_update();self.show(self.guide_goals.currentData());return
+        else:
+            self.guide_stage=0;self.selected=None;self.active_port=None;self.report=None
+        self._guide_update()
+
+    def _guide_return(self):
+        self._guide_update();self.show('guide')
 
     def resizeEvent(self,event):
         super().resizeEvent(event)
         if not hasattr(self,'side'):return
         compact=self.width()<850
         self.side.setFixedWidth(62 if compact else 195)
+        self.side_scroll.setFixedWidth(78 if compact else 211)
         self.back_button.setText('' if compact else 'رجوع')
         for key,b in self.nav.items():b.setText('' if compact else self.nav_titles[key])
 
@@ -181,6 +261,12 @@ class Workstation(QMainWindow):
         self.card_label.setText('لا نتيجة حالية — اختر الجهاز وافحصه')
         self.detection_label.setText(f'{len(self.devices)} جهاز/مجموعة • {len(data.devices)} واجهة تقنية • {data.message}')
         self._render_cards()
+        self._guided_probe=False;self.guide_stage=0
+        self.guide_devices.clear()
+        for device in self.devices:self.guide_devices.addItem(device.title,device.key)
+        if self.guide_active and self.devices:self.guide_stage=1
+        self.guide_error.setText('اختر الفلاشة من القائمة؛ لا تحتاج لاختيار COM.' if self.devices else 'لم يثبت اكتشاف فلاشة. تأكد من التوصيل والتعريف ثم أعد البحث. '+data.message)
+        self._guide_update()
 
     def _render_cards(self):
         while self.cards.count():
@@ -205,10 +291,14 @@ class Workstation(QMainWindow):
             if previous:v.addWidget(label('آخر فحص في هذه الجلسة: '+previous.timestamp_utc,'muted',True))
             v.addWidget(label('الشريحة: '+values.get('SIM status','لم تُفحص')+'\nFirmware: '+values.get('Firmware','لم يُقرأ')+'\nAPDU: '+values.get('APDU SELECT MF','لم يُفحص')+' • USIM AKA: غير مثبت'))
             self._actions(v,[(name,lambda d=device,f=fn:self._device_action(d,f),kind,accent) for name,fn,kind,accent in (
-                ('فحص الجهاز',self.run_probe,'scan',True),('معلومات الشريحة',lambda:self.show('sim'),'sim',False),
+                ('ابدأ معي خطوة بخطوة',self._guide_start_device,'scan',True),('فحص الجهاز',self.run_probe,'scan',False),('معلومات الشريحة',lambda:self.show('sim'),'sim',False),
                 ('الرسائل',lambda:self.show('sms'),'sms',False),('الشبكة والاتصال',lambda:self.show('network'),'network',False),
                 ('الفحص المتقدم',self.advanced_details,'details',False),('تقرير الجهاز',lambda:self.show('reports'),'reports',False))])
             self.cards.addWidget(box)
+
+    def _guide_start_device(self):
+        self.guide_active=True;self.guide_stage=2;self.report=None;self._populate_readings([])
+        self.guide_error.clear();self._guide_update();self.show('guide')
 
     def _device_action(self,device,fn):
         if self.busy:return
@@ -363,7 +453,10 @@ class Workstation(QMainWindow):
         except queue.Empty:return
         self.busy=False
         if error:
-            self.status_label.setText(error);return
+            self.status_label.setText(error)
+            if self._guided_probe:
+                self._guided_probe=False;self.guide_error.setText(error+' لا ننتقل لنتيجة ناجحة؛ يمكنك إعادة الفحص يدويًا.');self._guide_update()
+            return
         try:callback(result);self.status_label.setText('اكتمل: '+title)
         except Exception:self.status_label.setText('تعذر عرض النتيجة؛ لا تُعتبر نجاحًا.')
     def closeEvent(self,event):
@@ -384,7 +477,12 @@ class Workstation(QMainWindow):
             self.card_label.setText(('تم الاتصال بالمودم بنجاح' if connection else 'لم يثبت الاتصال بالمودم')+
                 ('، الشريحة جاهزة' if ready else '، راجع حالة الشريحة')+'؛ الوصول إلى APDU يحتاج اختبارًا مستقلًا.')
             self._render_cards()
-            self.show('sim')
+            if self._guided_probe:
+                self._guided_probe=False;self.guide_stage=3 if connection else 2
+                self.guide_error.setText('' if connection else 'لم يثبت الاتصال؛ راجع التوصيل والبرنامج الذي قد يستخدم المنفذ ثم أعد الفحص.')
+                self._guide_update()
+                if self.current_page=='guide':self.show('guide')
+            else:self.show('sim')
         self._with_port('فحص المودم والشريحة',probe,done)
     def check_ef(self):
         if not self._require_port() or not self._confirm('قراءة الشريحة','تأكيد ملكية الشريحة والموافقة على قراءة EF-ICCID دون عرض الرقم الكامل؟'):return

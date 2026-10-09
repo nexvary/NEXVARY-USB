@@ -23,11 +23,12 @@ ui.show();app.processEvents();checks=[]
 for physical_w,physical_h in [(1024,768),(1280,720),(1366,768),(1920,1080)]:
     ui.setFixedSize(int(physical_w/scale),int(physical_h/scale));app.processEvents()
     for page in ui.pages:
-        QTest.mouseClick(ui.nav[page],Qt.LeftButton);app.processEvents()
+        ui.side_scroll.ensureWidgetVisible(ui.nav[page]);app.processEvents();QTest.mouseClick(ui.nav[page],Qt.LeftButton);app.processEvents()
         assert ui.current_page==page
         scroll=ui.pages[page][0]
         assert scroll.viewport().width()>=280, (physical_w,scale,page,scroll.viewport().width())
         for b in ui.pages[page][1].findChildren(QPushButton):
+            if not b.isVisible():continue
             assert b.width()>=35 and b.height()>=35,(page,b.text(),b.size())
             scroll.ensureWidgetVisible(b);app.processEvents()
             # Layout or scrollbar makes each control reachable; no cropped control.
@@ -81,4 +82,44 @@ ui.show('devices');app.processEvents()
 # Back is exercised through an actual button click, not only direct methods.
 QTest.mouseClick(ui.nav['sim'],Qt.LeftButton);app.processEvents();QTest.mouseClick(ui.back_button,Qt.LeftButton);app.processEvents();assert ui.current_page=='devices'
 (out/f'layout-checks-scale{scale:g}.json').write_text(json.dumps(checks,indent=2),encoding='utf-8')
+# Actual five-stage Qt navigation; synthetic discovery and report, no hardware.
+from unittest.mock import patch
+from PySide6.QtCore import QElapsedTimer
+from nexvary_usim_lab.core import Report, Reading
+
+def await_guide_job():
+    clock=QElapsedTimer();clock.start()
+    while ui.busy and clock.elapsed()<4000:
+        app.processEvents();QTest.qWait(10)
+    assert not ui.busy, 'Guided worker did not finish'
+
+ui.guide_stage=0;ui._guide_update();ui.show('guide');app.processEvents()
+with patch('nexvary_usim_lab.gui.detect',return_value=ui.inventory):
+    ui.pages['guide'][0].ensureWidgetVisible(ui.guide_primary);app.processEvents();QTest.mouseClick(ui.guide_primary,Qt.LeftButton);await_guide_job()
+assert ui.guide_stage==1 and ui.guide_devices.count()==2
+ui.pages['guide'][0].ensureWidgetVisible(ui.guide_primary);app.processEvents();QTest.mouseClick(ui.guide_primary,Qt.LeftButton);app.processEvents()
+assert ui.guide_stage==2 and ui.selected and ui.report is None
+fixture=Report('NEXVARY USB Studio','synthetic','synthetic','COM7',True,[
+    Reading('Connection','OK','OK','Synthetic'),Reading('SIM status','OK','+CPIN: READY','Synthetic'),
+    Reading('Model','OK','K3770','Synthetic'),Reading('ICCID','TIMEOUT','unavailable','Synthetic')])
+with patch('nexvary_usim_lab.gui.discover_at',return_value=('COM7',None)),patch('nexvary_usim_lab.gui.probe',return_value=fixture):
+    ui.pages['guide'][0].ensureWidgetVisible(ui.guide_primary);app.processEvents();QTest.mouseClick(ui.guide_primary,Qt.LeftButton);await_guide_job()
+assert ui.guide_stage==3 and 'محاكاة' in ui.guide_result.text()
+ui.guide_goals.setCurrentIndex(0);app.processEvents()
+ui.pages['guide'][0].verticalScrollBar().setValue(0);app.processEvents()
+assert ui.grab().save(str(out/f'1366x768-scale{scale:g}-guided-result-synthetic.png'))
+ui.pages['guide'][0].ensureWidgetVisible(ui.guide_primary);app.processEvents();QTest.mouseClick(ui.guide_primary,Qt.LeftButton);app.processEvents()
+assert ui.current_page=='sim' and ui.guide_stage==4
+resume=next(b for b in ui.pages['sim'][1].findChildren(QPushButton) if b.text()=='متابعة مراحل الاستخدام')
+ui.pages['sim'][0].ensureWidgetVisible(resume);app.processEvents();QTest.mouseClick(resume,Qt.LeftButton);app.processEvents()
+assert ui.current_page=='guide' and ui.guide_stage==4
+ui.pages['guide'][0].ensureWidgetVisible(ui.guide_primary);app.processEvents();QTest.mouseClick(ui.guide_primary,Qt.LeftButton);app.processEvents()
+assert ui.guide_stage==0 and ui.selected is None
+# Failed scan stays on the scan stage and must never appear as successful.
+ui.selected=ui.devices[0];ui.active_port='COM7';ui.guide_stage=2;ui._guide_update()
+failed=Report('NEXVARY USB Studio','synthetic','synthetic','COM7',True,[Reading('Connection','TIMEOUT','unavailable','Synthetic'),Reading('SIM status','TIMEOUT','unavailable','Synthetic')])
+with patch('nexvary_usim_lab.gui.probe',return_value=failed):
+    ui.pages['guide'][0].ensureWidgetVisible(ui.guide_primary);app.processEvents();QTest.mouseClick(ui.guide_primary,Qt.LeftButton);await_guide_job()
+assert ui.guide_stage==2 and 'لم يكتمل' in ui.guide_result.text()
+print('Guided Qt flow PASS: five stages, selected device, successful/failed synthetic scan, function and return')
 ui.close();print(f'GUI PASS: {len(checks)} page/resolution checks at scale {scale:g}, synthetic grouping and Back')
