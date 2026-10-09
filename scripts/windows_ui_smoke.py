@@ -21,7 +21,7 @@ assert QFontMetrics(QFont('Noto Sans')).inFontUcs4(ord('N')), 'Latin font glyph 
 ui.display_inventory(Inventory('NOT_DETECTED',[],[],'لا جهاز متصل في بيئة الاختبار','OK'))
 ui.show();app.processEvents();checks=[]
 for physical_w,physical_h in [(1024,768),(1280,720),(1366,768),(1920,1080)]:
-    ui.resize(int(physical_w/scale),int(physical_h/scale));app.processEvents()
+    ui.setFixedSize(int(physical_w/scale),int(physical_h/scale));app.processEvents()
     for page in ui.pages:
         QTest.mouseClick(ui.nav[page],Qt.LeftButton);app.processEvents()
         assert ui.current_page==page
@@ -34,8 +34,11 @@ for physical_w,physical_h in [(1024,768),(1280,720),(1366,768),(1920,1080)]:
             mapped=b.mapTo(scroll.viewport(),b.rect().topLeft())
             assert mapped.y()>=-1 and mapped.y()+b.height()<=scroll.viewport().height()+1,(page,b.text(),mapped,scroll.viewport().size())
         scroll.verticalScrollBar().setValue(0);scroll.horizontalScrollBar().setValue(0);app.processEvents()
+        assert (ui.width(),ui.height())==(int(physical_w/scale),int(physical_h/scale)), 'Native window resized by desktop'
+        shot=ui.grab()
+        assert abs(shot.width()-physical_w)<=2 and abs(shot.height()-physical_h)<=2, 'Physical screenshot dimensions invalid'
         path=out/f'{physical_w}x{physical_h}-scale{scale:g}-{page}-no-hardware.png'
-        assert ui.grab().save(str(path))
+        assert shot.save(str(path))
         checks.append(dict(resolution=f'{physical_w}x{physical_h}',scale=scale,page=page,logical_size=[ui.width(),ui.height()],screenshot=path.name,hardware=False))
 # Explicitly marked fixture: one composite modem + a second physical modem.
 items=[]
@@ -43,7 +46,7 @@ for suffix,com in [('A',7),('B',9)]:
     parent='USB\\VID_12D1&PID_14C9\\SYNTHETIC-'+suffix
     for i,(name,kind) in enumerate([('Huawei K3770 Vodafone','USB'),(f'Vodafone Secondary Modem (COM{com})','Modem'),(f'Vodafone Diagnostics (COM{com-1})','Ports')]):
         items.append(dict(Name=name,Class=kind,Status='OK',InstanceId=parent if i==0 else 'USB\\VID_12D1&PID_14C9&MI_0'+str(i)+'\\SYNTHETIC-'+suffix,Ancestors=[parent]))
-ui.resize(int(1366/scale),int(768/scale));ui.display_inventory(Inventory('COM_AVAILABLE',_parse_windows(json.dumps(items)),[],'محاكاة PnP صريحة — ليست أجهزة متصلة','OK'));ui.show('devices');app.processEvents()
+ui.setFixedSize(int(1366/scale),int(768/scale));ui.display_inventory(Inventory('COM_AVAILABLE',_parse_windows(json.dumps(items)),[],'محاكاة PnP صريحة — ليست أجهزة متصلة','OK'));ui.show('devices');app.processEvents()
 ui.connection_label.setText('اختبار واجهة ببيانات اصطناعية — لا نتائج فحص أجهزة فعلية')
 assert len(ui.devices)==2 and len(ui.devices[0].interfaces)==3
 assert ui.grab().save(str(out/f'1366x768-scale{scale:g}-devices-synthetic.png'))
