@@ -216,6 +216,9 @@ class Workstation(QMainWindow):
                 self.guide_stage=4;self._guide_update();self.show(self.guide_goals.currentData());return
         else:
             self.guide_stage=0;self.selected=None;self.active_port=None;self.report=None
+            self._populate_readings([]);rows(self.sms_table,[]);rows(self.network_table,[])
+            self.card_label.setText('لا نتيجة حالية — اختر الجهاز وافحصه')
+            self.connection_label.setText('اختر جهازًا ثم ابدأ الفحص')
         self._guide_update()
 
     def _guide_return(self):

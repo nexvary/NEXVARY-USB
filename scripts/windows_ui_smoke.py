@@ -114,7 +114,8 @@ resume=next(b for b in ui.pages['sim'][1].findChildren(QPushButton) if b.text()=
 ui.pages['sim'][0].ensureWidgetVisible(resume);app.processEvents();QTest.mouseClick(resume,Qt.LeftButton);app.processEvents()
 assert ui.current_page=='guide' and ui.guide_stage==4
 ui.pages['guide'][0].ensureWidgetVisible(ui.guide_primary);app.processEvents();QTest.mouseClick(ui.guide_primary,Qt.LeftButton);app.processEvents()
-assert ui.guide_stage==0 and ui.selected is None
+assert ui.guide_stage==0 and ui.selected is None and ui.report is None
+assert ui.sim_table.rowCount()==0 and ui.report_table.rowCount()==0
 # Failed scan stays on the scan stage and must never appear as successful.
 ui.selected=ui.devices[0];ui.active_port='COM7';ui.guide_stage=2;ui._guide_update()
 failed=Report('NEXVARY USB Studio','synthetic','synthetic','COM7',True,[Reading('Connection','TIMEOUT','unavailable','Synthetic'),Reading('SIM status','TIMEOUT','unavailable','Synthetic')])
