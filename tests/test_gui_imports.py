@@ -11,7 +11,7 @@ class GuiContractTests(unittest.TestCase):
         methods={x.name for x in cls.body if isinstance(x,ast.FunctionDef)}
         for method in ("_build_devices","_build_sim","_build_sms","_build_reports",
                        "_build_about","run_probe","check_ef","check_apdu","send_sms",
-                       "read_sms","export_report","export_usb","read_pcsc"):
+                       "read_sms","export_report","export_usb","export_wificall_capabilities","read_pcsc"):
             self.assertIn(method,methods)
 
     def test_icon_is_generated_in_ci(self):

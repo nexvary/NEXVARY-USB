@@ -9,7 +9,7 @@ from .discovery import detect, to_diagnostic_json
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="NEXVARY USB-USIM Lab — read-only local diagnostics")
-    parser.add_argument("action", nargs="?", choices=("gui", "ports", "pcsc", "probe", "demo", "select-mf", "catalog", "diagnose", "bridge"), default="gui")
+    parser.add_argument("action", nargs="?", choices=("gui", "ports", "pcsc", "probe", "demo", "select-mf", "catalog", "diagnose", "bridge", "capabilities"), default="gui")
     parser.add_argument("--port", help="Explicit modem serial port, for probe only")
     parser.add_argument("--baudrate", type=int, default=115200)
     parser.add_argument("--export", help="Optional .json or .csv redacted report")
@@ -54,8 +54,26 @@ def main(argv=None):
             for entry in found:
                 print(entry)
             return 0
-        if args.action in ("probe", "select-mf") and not args.port:
+        if args.action in ("probe", "select-mf", "capabilities") and not args.port:
             parser.error("--port COM3 (or /dev/ttyUSB0) is required for probe")
+        if args.action == "capabilities":
+            from .wificall_capabilities import capability_json
+            report = probe(args.port, args.baudrate)
+            selected = select_master_file(args.port, args.baudrate) if args.consent else None
+            # USB identity is accepted only from local inventory of this port.
+            inventory = next((p for p in ports() if p.device == args.port), None)
+            usb_id = f"{inventory.vid}:{inventory.pid}" if inventory and inventory.vid != "—" and inventory.pid != "—" else None
+            result = capability_json(report, select_mf=selected, usb_id=usb_id)
+            if args.export:
+                path = Path(args.export)
+                if path.suffix.lower() != ".json":
+                    parser.error("Capability export must end with .json")
+                with path.open("x", encoding="utf-8") as handle:
+                    handle.write(result)
+                print("Capability evidence saved:", path)
+            else:
+                print(result.encode('ascii', 'backslashreplace').decode('ascii'))
+            return 0
         if args.action == "select-mf":
             if not args.consent:
                 parser.error("select-mf requires explicit --consent from the card owner")

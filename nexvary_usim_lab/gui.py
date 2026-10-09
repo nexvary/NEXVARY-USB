@@ -417,7 +417,8 @@ class Workstation(QMainWindow):
 
     def _build_reports(self):
         v=self._heading('reports','تقرير الجهاز','تقرير أحدث فحص للجهاز المختار. لا يتضمن محتوى الرسائل أو أسرار المصادقة.')
-        self._actions(v,[('تصدير JSON',lambda:self.export_report('json'),'reports',True),('تصدير CSV',lambda:self.export_report('csv'),'reports',False),('تقرير اكتشاف USB',self.export_usb,'devices',False)])
+        self._actions(v,[('تصدير JSON',lambda:self.export_report('json'),'reports',True),('تصدير CSV',lambda:self.export_report('csv'),'reports',False),('تقرير اكتشاف USB',self.export_usb,'devices',False),('دليل قدرات WiFi-Call',self.export_wificall_capabilities,'network',False)])
+        v.addWidget(label('دليل WiFi-Call يفصل AT وSIM وAPDU عن AKA والصوت وIMS؛ لا يفعّل المكالمات ولا يتضمن رقم الشريحة.','gold'))
         self.report_table=table(['الفحص','الحالة','النتيجة']);v.addWidget(self.report_table);v.addStretch()
 
     def _build_about(self):
@@ -645,8 +646,23 @@ class Workstation(QMainWindow):
     def export_usb(self):
         if not self.inventory:return
         self._save(to_diagnostic_json(self.inventory),'json')
-    def _save(self,text,ext):
-        filename,_=QFileDialog.getSaveFileName(self,'حفظ تقرير منقح','device-report.'+ext,f'{ext.upper()} (*.{ext})')
+    def export_wificall_capabilities(self):
+        if self.report is None:
+            QMessageBox.information(self,'لا نتائج','افحص الجهاز أولًا ثم صدّر دليل القدرات.');return
+        from .wificall_capabilities import capability_json
+        # Cached report's port must match actual selected inventory. Export never
+        # sends AT/APDU/AUTH and never fills USB ID from a catalog model alias.
+        observed=None
+        if self.selected and not self.report.simulated:
+            observed=next((p for p in self.selected.ports if p.device==self.report.device),None)
+        usb_id=f'{observed.vid}:{observed.pid}' if observed and observed.vid!='—' and observed.pid!='—' else None
+        try:
+            content=capability_json(self.report,usb_id=usb_id)
+        except LabError:
+            QMessageBox.warning(self,'تعذر التصدير','بيانات الفحص أو هوية USB غير صالحة. أعد الفحص.');return
+        self._save(content,'json','wifi-call-capabilities.json')
+    def _save(self,text,ext,default_name=None):
+        filename,_=QFileDialog.getSaveFileName(self,'حفظ تقرير منقح',default_name or 'device-report.'+ext,f'{ext.upper()} (*.{ext})')
         if not filename:return
         try:
             with open(filename,'w',encoding='utf-8',newline='') as stream:stream.write(text)
