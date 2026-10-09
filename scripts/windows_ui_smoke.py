@@ -107,6 +107,8 @@ with patch('nexvary_usim_lab.gui.discover_at',return_value=('COM7',None)),patch(
 assert ui.guide_stage==3 and 'محاكاة' in ui.guide_result.text()
 ui.guide_goals.setCurrentIndex(0);app.processEvents()
 ui.pages['guide'][0].verticalScrollBar().setValue(0);app.processEvents()
+# Flush native Windows deferred repaint after the asynchronous scan callback.
+QTest.qWait(200);app.processEvents();ui.repaint();app.processEvents()
 assert ui.grab().save(str(out/f'1366x768-scale{scale:g}-guided-result-synthetic.png'))
 ui.pages['guide'][0].ensureWidgetVisible(ui.guide_primary);app.processEvents();QTest.mouseClick(ui.guide_primary,Qt.LeftButton);app.processEvents()
 assert ui.current_page=='sim' and ui.guide_stage==4
