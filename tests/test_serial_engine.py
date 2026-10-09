@@ -50,6 +50,10 @@ class ReceiverTests(unittest.TestCase):
     def test_standard_cms_and_no_vendor_error_leak(self):
         self.assertIn('ممتلئة',error_message('+CMS ERROR: 322'))
         self.assertNotIn('PRIVATE',error_message('+CME ERROR: PRIVATE'))
+    def test_cms_device_lock_is_distinct_from_card_puk(self):
+        self.assertIn('PH-SIM PIN',error_message('+CMS ERROR: 312'))
+        self.assertNotIn('PUK',error_message('+CMS ERROR: 312'))
+        self.assertIn('PUK',error_message('+CMS ERROR: 316'))
     def test_sms_prompt_is_exact_and_no_automatic_resend(self):
         wire=FragmentWire([[b'>']]);engine=SerialAT(wire)
         self.assertEqual('PROMPT',engine.command('AT+CMGS="+201000000000"',.1,True).status)
