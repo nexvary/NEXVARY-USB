@@ -5,7 +5,7 @@ import queue
 import threading
 from pathlib import Path
 from PySide6.QtCore import Qt, QTimer, QSize, QEvent, QCoreApplication
-from PySide6.QtGui import QIcon, QPixmap, QFontDatabase, QFont
+from PySide6.QtGui import QIcon, QPixmap, QFontDatabase, QFont, QColor
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
     QHBoxLayout, QGridLayout, QLabel, QPushButton, QFrame, QScrollArea,
     QStackedWidget, QTableWidget, QTableWidgetItem, QHeaderView, QFileDialog,
@@ -22,12 +22,13 @@ from .ui_results import ui_reading
 from .port_discovery import discover_at, PortPreferences
 from .esim_integration import APK_IDENTITY, IntegrationError, parse_activation, qr_png, read_qr, read_recycling_csv
 from . import __version__
+from .presentation import NAMES, outcome, explain
 from .usage_guide import STEPS, GOALS, connection_ok, explain_report
 
-DARK='#050507'; PANEL='#10090D'; FIELD='#141016'; SILVER='#C3CBD3'
-BLUE='#39FF14'; GREEN='#39FF14'; GOLD='#FFD176'; RED='#A51036'
+DARK='#0C1319'; PANEL='#111E29'; FIELD='#0C1319'; SILVER='#C3CBD3'
+BLUE='#6A88A0'; GREEN='#39FF14'; GOLD='#FFD176'; RED='#6A88A0'
 
-ICON_DIR=Path(__file__).resolve().parent.parent/'assets'/'icons'/'oxygen'
+ICON_DIR=Path(__file__).resolve().parent.parent/'assets'/'icons'/'vector'
 ICON_KINDS=('devices','sim','sms','network','reports','about','scan','back','refresh','details')
 
 def load_fonts():
@@ -40,7 +41,7 @@ def load_fonts():
 
 def icon(kind, color=BLUE):
     # Preserve the original full-color artwork; never tint raster icons.
-    path=ICON_DIR/((kind if kind in ICON_KINDS else 'about')+'.png')
+    path=ICON_DIR/((kind if kind in ICON_KINDS else 'about')+'.svg')
     result=QIcon(str(path))
     if result.isNull():
         raise RuntimeError('Bundled color icon missing: '+path.name)
@@ -86,27 +87,27 @@ def rows(t,data):
     t.resizeRowsToContents()
 
 STYLE='''
-QWidget { background:#050507; color:#ECF1F6; font-family:"Noto Sans Arabic","Noto Sans","Segoe UI"; font-size:13px; }
-QFrame#panel { background:#10090D; border:1px solid #83102D; border-radius:12px; }
+QWidget { background:#0C1319; color:#ECF1F6; font-family:"Noto Sans Arabic","Noto Sans","Segoe UI"; font-size:13px; }
+QFrame#panel { background:#111E29; border:1px solid #71808C; border-radius:12px; }
 QFrame#panel QLabel, QFrame#panel QCheckBox { background:transparent; }
 QLabel#title { font-size:23px; font-weight:600; color:#F1F5F9; }
 QLabel#brand { font-size:25px; font-weight:700; letter-spacing:2px; color:#B5BEC6; }
 QLabel#muted { color:#B5BEC6; } QLabel#good { color:#39FF14; } QLabel#gold { color:#E7BE69; }
-QPushButton { background:#171016; border:1px solid #6A1831; border-radius:7px; padding:7px 10px; text-align:right; }
-QPushButton:hover { border-color:#39FF14; background:#26101A; }
-QPushButton:checked { background:#351020; border-color:#39FF14; }
-QPushButton#primary { color:#E7BE69; border-color:#39FF14; }
+QPushButton { background:#13212D; border:1px solid #71808C; border-radius:7px; padding:7px 10px; text-align:right; }
+QPushButton:hover { border-color:#6A88A0; background:#193041; }
+QPushButton:checked { background:#193041; border-color:#6A88A0; }
+QPushButton#primary { color:#E7BE69; border-color:#6A88A0; }
 QPushButton:disabled { color:#697985; border-color:#253440; }
-QLineEdit,QTextEdit,QComboBox,QSpinBox { background:#0A090D; border:1px solid #71808C; border-radius:5px; padding:8px; selection-background-color:#7D1230; }
-QTableWidget { background:#0A090D; alternate-background-color:#1A0C13; gridline-color:#40202B; border:1px solid #83102D; }
-QHeaderView::section { background:#30101C; color:#E8DDE2; padding:9px; border:0; }
-QScrollArea { border:0; } QScrollBar:vertical { background:#09070B; width:12px; }
-QScrollBar::handle:vertical { background:#A51036; min-height:24px; border-radius:5px; }
+QLineEdit,QTextEdit,QComboBox,QSpinBox { background:#0C1319; border:1px solid #71808C; border-radius:5px; padding:8px; selection-background-color:#385974; }
+QTableWidget { background:#0C1319; alternate-background-color:#152432; gridline-color:#31414F; border:1px solid #71808C; }
+QHeaderView::section { background:#223443; color:#E8DDE2; padding:9px; border:0; }
+QScrollArea { border:0; } QScrollBar:vertical { background:#0C1319; width:12px; }
+QScrollBar::handle:vertical { background:#6A88A0; min-height:24px; border-radius:5px; }
 QScrollBar::add-line:vertical,QScrollBar::sub-line:vertical { height:0; }
-QToolTip { color:#ECF1F6; background:#26101A; border:1px solid #71808C; }
-QFrame#panel:hover { border-color:#39FF14; }
-QPushButton#primary { background:#39FF14; color:#050507; border-color:#39FF14; }
-QLineEdit:focus,QTextEdit:focus,QComboBox:focus,QSpinBox:focus { border-color:#39FF14; }
+QToolTip { color:#ECF1F6; background:#193041; border:1px solid #71808C; }
+QFrame#panel:hover { border-color:#6A88A0; }
+QPushButton#primary { background:#385974; color:#ECF1F6; border-color:#6A88A0; }
+QLineEdit:focus,QTextEdit:focus,QComboBox:focus,QSpinBox:focus { border-color:#6A88A0; }
 '''
 
 class Workstation(QMainWindow):
@@ -289,7 +290,7 @@ class Workstation(QMainWindow):
                 if entry:device.title=entry.brand+' '+entry.model+(' — Vodafone' if 'Vodafone' in device.title else '')
             box,v=panel();title=QHBoxLayout();logo=QLabel();logo.setPixmap(icon('devices',GOLD).pixmap(38,38));title.addWidget(logo)
             title.addWidget(label(device.title,'title'),1);v.addLayout(title)
-            v.addWidget(label('متصل عبر '+(', '.join(p.device for p in device.ports) or 'USB؛ لا يوجد COM مرتبط'),'good'))
+            v.addWidget(label('واجهات مكتشفة: '+(', '.join(p.device for p in device.ports) or 'USB؛ لا يوجد COM مرتبط'),'muted'))
             v.addWidget(label(device.driver_status+' • '+device.evidence,'muted'))
             options=candidates(device,self.preferences.get(device.key))
             v.addWidget(label('منفذ AT المرشح: '+(options[0].device+' — يحتاج اختبار AT' if options else 'لا يوجد؛ افتح الفحص المتقدم'),'muted'))
@@ -320,7 +321,7 @@ class Workstation(QMainWindow):
     def _build_sim(self):
         v=self._heading('sim','معلومات الشريحة','حالة SIM وPIN ومعرّف منقح. نجاح SELECT لا يثبت مصادقة USIM AKA.')
         self._actions(v,[('فحص شامل',self.run_probe,'scan',True),('مقارنة منافذ المودم',self.compare_modem_ports,'details',False),('قراءة EF-ICCID',self.check_ef,'sim',False),('اختبار SELECT MF',self.check_apdu,'sim',False),('تطبيقات SIM / USIM',self.check_applications,'sim',False)])
-        self.card_label=label('الشريحة لم تُفحص','good');v.addWidget(self.card_label)
+        self.card_label=label('الشريحة لم تُفحص','gold');v.addWidget(self.card_label)
         self.sim_table=table(['الفحص','الحالة','النتيجة والتفسير']);v.addWidget(self.sim_table);v.addStretch()
 
     def _build_sms(self):
@@ -473,8 +474,13 @@ class Workstation(QMainWindow):
     def refresh(self):
         self._job('اكتشاف USB وCOM',detect,self.display_inventory)
     def _populate_readings(self,readings):
-        rows(self.sim_table,[ui_reading(r) for r in readings])
-        rows(self.report_table,[(r.name,r.status,r.value) for r in readings])
+        rows(self.sim_table,[(NAMES.get(r.name,r.name),outcome(r),explain(r)) for r in readings])
+        rows(self.report_table,[(NAMES.get(r.name,r.name),outcome(r),explain(r)) for r in readings])
+        for t in (self.sim_table,self.report_table):
+            for i,r in enumerate(readings):
+                t.item(i,1).setForeground(QColor(GREEN if outcome(r)=='ناجح' else RED if outcome(r)=='فشل' else GOLD))
+                t.item(i,2).setToolTip(r.status+' — '+r.value+' — '+r.note)
+
     def run_probe(self):
         def done(report):
             self.report=report;self.reports[self.selected.key]=report;self._populate_readings(report.readings)
@@ -525,10 +531,10 @@ class Workstation(QMainWindow):
 
     def check_ef(self):
         if not self._require_port() or not self._confirm('قراءة الشريحة','تأكيد ملكية الشريحة والموافقة على قراءة EF-ICCID دون عرض الرقم الكامل؟'):return
-        self._with_port('EF-ICCID',lambda p:self._session(p,lambda s:s.sim_file_check()),self._show_reading)
+        self._with_port('EF-ICCID',lambda p:self._session(p,lambda s:s.sim_file_check()),self._show_reading,assess_sim=True)
     def check_apdu(self):
         if not self._require_port() or not self._confirm('اختبار APDU','توافق على إرسال SELECT MF ثابت للقراءة فقط؟ لا يثبت AKA.'):return
-        self._with_port('SELECT MF',select_master_file,self._show_reading)
+        self._with_port('SELECT MF',select_master_file,self._show_reading,assess_sim=True)
     def check_applications(self):
         from .usim_core import NexvaryUsimCore
         if not self._require_port() or not self._confirm('تطبيقات SIM','توافق على قراءة EF_DIR واختبار SELECT للتطبيقات المعلنة؟ لا تُرسل مصادقة أو أوامر تعديل.'):
@@ -543,9 +549,15 @@ class Workstation(QMainWindow):
                 self.reports[self.selected.key]=self.report
             self._populate_readings(readings)
             self.card_label.setText('دليل التطبيقات لا يثبت المصادقة؛ راجع النتائج أدناه')
-        self._with_port('NEXVARY USIM Core',lambda p:NexvaryUsimCore(p).inspect(consent=True),done)
+        self._with_port('NEXVARY USIM Core',lambda p:NexvaryUsimCore(p).inspect(consent=True),done,assess_sim=True)
     def _show_reading(self,r):
-        self.card_label.setText(r.value+' — '+r.note)
+        self.card_label.setText(outcome(r)+' — '+explain(r))
+        if self.selected and self.active_port and not (self.report and self.report.simulated):
+            evidence = ('APDU_READY','SELECT_MF_9000') if r.name=='APDU SELECT MF' and r.status=='ACCEPTED' and r.value=='SW=9000' else ('SIM_ACCESS_READY','EF_ICCID_READABLE') if r.name=='SIM EF ICCID' and r.status=='READABLE' else None
+            if evidence:
+                try: self.preferences.verify(self.selected.key,self.active_port,*evidence)
+                except OSError: pass
+
         readings=list(self.report.readings) if self.report else []
         readings=[x for x in readings if x.name!=r.name]+[r]
         if self.report:self.report.readings=readings

@@ -14,6 +14,7 @@ import threading
 import time
 import re
 import uuid
+from collections import deque
 from .core import LabError
 from .usim_backend import parse_aka
 
@@ -44,6 +45,7 @@ class PrivateUsimBridge:
         self.listener=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
         self.listener.bind(('127.0.0.1',port));self.listener.listen(4);self.listener.settimeout(.25)
         self.port=self.listener.getsockname()[1];self.used=set()
+        self.audit=deque(maxlen=128)  # operation/status only; no challenges, identities, credentials or keys
     def __repr__(self):return '<PrivateUsimBridge: pinned private session>'
     def stop(self):
         self.stop_event.set();self.backend.revoke();self.listener.close()
@@ -100,8 +102,10 @@ class PrivateUsimBridge:
                 state,payload=_response_payload(self.backend.authenticate_ami(result['rand'],result['autn']))
                 data=dict(state=state,payload=base64.b64encode(payload).decode(),request_id=request_id)
                 status='200 OK'
+                self.audit.append({'operation':'usim:authenticate','outcome':state})
             except Exception:
                 status='403 Forbidden';data={'state':'UNAVAILABLE'}
+                self.audit.append({'operation':'usim:authenticate','outcome':'UNAVAILABLE'})
             raw=json.dumps(data).encode()
             tls.sendall((f'HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {len(raw)}\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n').encode()+raw)
         except Exception:

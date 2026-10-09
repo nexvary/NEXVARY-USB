@@ -40,7 +40,7 @@ class NewOperations(unittest.TestCase):
             with self.assertRaises(LabError):s.set_apn(1,'internet',True)
     def test_ef_dir_tlv_and_usim_inventory(self):
         record=bytes.fromhex('61094F07A0000000871002')
-        class Fake(DemoSerial):ANSWERS={'AT+CRSM=192,12032,0,0,0':('+CRSM: 144,0,"620782054221000B01"','OK'),'AT+CRSM=178,12032,1,4,11':('+CRSM: 144,0,"'+record.hex()+'"','OK'),'AT+CRSM=178,12032,2,4,11':('+CRSM: 106,131','OK')}
+        class Fake(DemoSerial):ANSWERS={ 'AT+CPIN?':('+CPIN: READY','OK'), 'AT+CRSM=192,12032,0,0,0':('+CRSM: 144,0,"620782054221000B01"','OK'),'AT+CRSM=178,12032,1,4,11':('+CRSM: 144,0,"'+record.hex()+'"','OK'),'AT+CRSM=178,12032,2,4,11':('+CRSM: 106,131','OK')}
         rr=applications('COM7',factory=Fake);self.assertIn('USIM',rr[0].value);self.assertEqual('DECLARED',rr[0].status)
         with self.assertRaises(LabError):tlvs(b'\x61\x10\x00')
 

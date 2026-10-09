@@ -89,6 +89,7 @@ def compare_ports(device, factory=None, max_ports=4, deadline_seconds=1.5,
     if not isinstance(deadline_seconds, (int, float)) or not 0.2 <= deadline_seconds <= 5:
         raise LabError("Invalid comparison deadline.")
     port_list = candidates(device, include_diagnostics=include_diagnostics)[:max_ports]
+    simulated = factory is not None
     factory = factory or _open_serial
     results = []
     for port in port_list:
@@ -109,5 +110,5 @@ def compare_ports(device, factory=None, max_ports=4, deadline_seconds=1.5,
         getattr(device, "title", "مودم USB"),
         tuple(results), selected.port if selected else None,
         bool(selected and selected.sim == "RESPONSIVE"),
-        simulated=False,
+        simulated=simulated,
     )

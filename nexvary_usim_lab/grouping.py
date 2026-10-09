@@ -72,9 +72,10 @@ def group_devices(inventory):
 def port_role(port):
     name = port.description.lower()
     if re.search(r'diag|diagnostic|debug|trace', name): return 'Diagnostics'
-    if re.search(r'modem|at port|pc ui|application|app port', name): return 'AT candidate'
+    if re.search(r'pc ui|application|app port', name): return 'Application'
+    if re.search(r'modem|at port', name): return 'Modem'
     return 'Unknown'
 
 def candidates(device, preferred=None, include_diagnostics=False):
     allowed = [p for p in device.ports if include_diagnostics or port_role(p) != 'Diagnostics']
-    return sorted(allowed, key=lambda p: (p.device != preferred, port_role(p) != 'AT candidate', p.device))
+    return sorted(allowed, key=lambda p: (p.device != preferred, port_role(p) not in ('Modem','Application'), p.device))

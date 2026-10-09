@@ -38,9 +38,9 @@ QUERIES = (
     Query("Model", "AT+CGMM", "Identification only"),
     Query("Firmware", "AT+CGMR", "Identification only"),
     Query("SIM status", "AT+CPIN?", "Read status; never submit a PIN"),
-    Query("ICCID", "AT+CCID", "Masked SIM identifier, if available"),
     Query("Signal", "AT+CSQ", "Cellular signal diagnostic"),
     Query("Registration", "AT+CREG?", "Cellular registration diagnostic"),
+    Query("ICCID", "AT+CCID", "Masked SIM identifier, if available"),
     Query("CSIM probe", "AT+CSIM=?", "Test syntax response is not proof of USIM AKA"),
     Query("CGLA probe", "AT+CGLA=?", "Test syntax response is not proof of USIM AKA"),
     Query("CCHO probe", "AT+CCHO=?", "Test syntax response is not proof of USIM AKA"),
@@ -56,7 +56,7 @@ def redact(value: str) -> str:
     if not isinstance(value, str):
         raise TypeError("Expected text")
     value = _CONTROL.sub("", value)
-    return _PRIVATE_DECIMAL.sub(lambda m: "*" * (len(m.group()) - 4) + m.group()[-4:], value)[:512]
+    return re.sub(r"(?<![A-Za-z0-9])\+?\d{7,22}(?![A-Za-z0-9])", lambda m: "*" * (len(m.group()) - 4) + m.group()[-4:], value)[:512]
 
 def ports() -> list[Port]:
     try:
@@ -93,9 +93,9 @@ def _open_serial(device: str, baudrate: int):
     except ImportError:
         raise LabError("Install pyserial before connecting to a modem.") from None
     try:
-        return serial.Serial(port=device, baudrate=baudrate, timeout=0.15, write_timeout=2)
+        return serial.Serial(port=device, baudrate=baudrate, timeout=0.15, write_timeout=2, exclusive=True)
     except Exception:
-        raise LabError("Unable to open serial port; check its driver and other software.") from None
+        raise LabError("تعذر فتح المنفذ؛ قد يستخدمه Vodafone Mobile Broadband أو برنامج آخر، أو يحتاج التعريف إلى مراجعة. لم نغيّر التعريف.") from None
 
 def _one_query(transport, command: str, deadline_seconds: float = 4) -> tuple[str, str]:
     """Process expected AT reply while discarding unsolicited network chatter.
@@ -109,66 +109,31 @@ def _one_query(transport, command: str, deadline_seconds: float = 4) -> tuple[st
         raise LabError("AT command is not in the read-only allow-list.")
     if not 0.2 <= deadline_seconds <= 15:
         raise LabError("Invalid query deadline.")
-    expected_prefix = {
-        "AT+CPIN?": "+CPIN:",
-        "AT+CCID": "+CCID:",
-        "AT+CSQ": "+CSQ:",
-        "AT+CREG?": "+CREG:",
-        "AT+CSIM=?": "+CSIM:",
-        "AT+CGLA=?": "+CGLA:",
-        "AT+CCHO=?": "+CCHO:",
-        "AT+CRSM=?": "+CRSM:",
-    }.get(command)
-    unprefixed_id = command in ("AT+CGMI", "AT+CGMM", "AT+CGMR")
+    from .serial_at import receiver
     try:
-        transport.reset_input_buffer()
-        transport.write((command + "\r").encode("ascii"))
-        transport.flush()
-        deadline = time.monotonic() + deadline_seconds
-        output = []
-        noise_count = 0
-        total_bytes = 0
-        while time.monotonic() < deadline:
-            chunk = transport.readline()
-            if not chunk:
-                continue
-            total_bytes += len(chunk)
-            if total_bytes > 32768:
-                return "NOISY", "Excess unsolicited modem traffic"
-            line = chunk.decode("ascii", errors="replace").strip()
-            if not line or line.upper() == command.upper():
-                continue
-            if line == "OK":
-                return "OK", redact(" | ".join(output)) or "OK"
-            if line == "ERROR":
-                return "REJECTED", "Modem returned ERROR; command support is not established"
-            if line.startswith(("+CME ERROR", "+CMS ERROR")):
-                # Numeric error codes may explain transient SIM or modem state.
-                # Do not log vendor text or subscription identifiers.
-                match = re.fullmatch(r"\+(?:CME|CMS) ERROR:\s*(\d{1,4})", line)
-                category = "CME" if line.startswith("+CME") else "CMS"
-                code = (" " + match.group(1)) if match else ""
-                return "REJECTED", "Modem returned " + category + code + "; inspect SIM/driver/port state"
-            if (expected_prefix and line.startswith(expected_prefix)) or (
-                command == "AT+CCID" and line.isdecimal() and 18 <= len(line) <= 22
-            ):
-                if len(output) < 5:
-                    output.append(line[:160])
-            elif unprefixed_id and len(line) <= 80 and not line.startswith(("+", "^", "%")):
-                # Identification commands return a plain model/vendor/version.
-                if len(output) < 5:
-                    output.append(line)
-            else:
-                noise_count += 1
-                if noise_count > 512:
-                    return "NOISY", "Continuous unsolicited modem traffic"
-        if output:
-            return "TIMEOUT", "Reply data received; final OK not received"
-        return "TIMEOUT", "No complete reply within deadline"
-    except LabError:
-        raise
+        reply = receiver(transport).command(command, deadline_seconds)
+        if reply.status == 'ERROR':
+            return 'REJECTED', reply.error
+        if reply.status != 'OK':
+            return reply.status, {'TIMEOUT':'لم يصل رد مكتمل في الوقت المحدد.',
+                                  'NOISY':'إشعارات المودم تجاوزت حد الاستقبال الآمن.',
+                                  'SESSION_UNCERTAIN':'رد سابق غير مكتمل؛ أوقفنا الجلسة لمنع اختلاط الردود.'}.get(reply.status,'تعذر تفسير رد المودم.')
+        expected = {
+            'AT+CPIN?': '+CPIN:', 'AT+CCID': '+CCID:', 'AT+CSQ': '+CSQ:',
+            'AT+CREG?': '+CREG:', 'AT+CSIM=?': '+CSIM:', 'AT+CGLA=?': '+CGLA:',
+            'AT+CCHO=?': '+CCHO:', 'AT+CRSM=?': '+CRSM:'}.get(command)
+        plain = command in ('AT+CGMI','AT+CGMM','AT+CGMR')
+        output = [line for line in reply.lines if
+                  (expected and line.startswith(expected)) or
+                  (command == 'AT+CCID' and line.isdecimal() and 18 <= len(line) <= 22) or
+                  (plain and len(line) <= 80 and not line.startswith(('+','^','%')))]
+        # OK alone proves command completion, not receipt of the requested data.
+        if command in ('AT+CPIN?','AT+CCID','AT+CSQ','AT+CREG?') and not output:
+            return 'UNKNOWN', 'اكتمل أمر المودم دون بيانات القراءة المطلوبة.'
+        return 'OK', redact(' | '.join(output[:5])) or 'OK'
     except Exception:
-        return "IO_ERROR", "Serial transport failed"
+        receiver(transport).uncertain = True
+        return 'IO_ERROR', 'تعذر استقبال البيانات؛ تحقق من اتصال المودم.'
 
 @dataclass
 class Reading:
@@ -201,6 +166,32 @@ def _probe_unlocked(device: str, baudrate: int = 115200,
     results = []
     try:
         for query in QUERIES:
+            if query.name == 'ICCID':
+                values = {r.name:r for r in results}
+                card = values.get('SIM status')
+                if not card or card.status != 'OK' or card.value != '+CPIN: READY':
+                    results.append(Reading('ICCID','NEEDS_USER','لم تثبت جاهزية الشريحة؛ لم نرسل قراءة الرقم.',query.note))
+                    continue
+                from .catalog import load_profiles
+                model = values.get('Model'); firmware = values.get('Firmware'); maker = values.get('Manufacturer')
+                profile = next((p for p in load_profiles().values() if model and firmware and maker
+                                and p['model'].lower() == model.value.lower()
+                                and p['vendor'].lower() in maker.value.lower()
+                                and firmware.value in p.get('firmware',[])), {})
+                if profile.get('preferred_iccid_method') == 'CRSM_EF_2FE2':
+                    # Fixed read only, based on retained owner evidence. No retries.
+                    from .serial_at import receiver
+                    from .device_operations import _parse_crsm, ICCID_FILE
+                    reply = receiver(transport).command(ICCID_FILE, 6)
+                    if reply.status == 'OK':
+                        row = _parse_crsm(reply.lines)
+                        row.name = 'ICCID'
+                        if row.status == 'READABLE': row.status = 'OK'
+                    else:
+                        row = Reading('ICCID','REJECTED' if reply.status=='ERROR' else reply.status,
+                                      reply.error or 'لم تكتمل قراءة CRSM.', 'طريقة ملف التوافق؛ لا تثبت AKA.')
+                    results.append(row)
+                    continue
             state, value = _one_query(transport, query.command)
             results.append(Reading(query.name, state, redact(value), query.note))
     finally:
@@ -291,40 +282,17 @@ def _fixed_select_once(transport, apdu: str, duration: float = 5) -> str:
     if apdu not in {code for _,code in _SELECT_MF_VARIANTS}:
         raise LabError("APDU not in read-only SELECT allow-list.")
     command = f'AT+CSIM={len(apdu)},"{apdu}"'
-    transport.reset_input_buffer()
-    transport.write((command + "\r").encode("ascii"))
-    transport.flush()
-    deadline = time.monotonic() + duration
-    sw = None
-    total = 0
-    noise = 0
-    while time.monotonic() < deadline:
-        chunk = transport.readline()
-        if not chunk:
-            continue
-        total += len(chunk)
-        if total > 8192:
-            raise LabError("Excess modem APDU output.")
-        line = chunk.decode("ascii", errors="replace").strip()
-        if not line or line == command:
-            continue
-        m = _CSIM_LINE.fullmatch(line)
-        if m:
-            value = m.group(2).upper()
-            if int(m.group(1)) != len(value) or len(value) < 4 or len(value) % 2:
-                raise LabError("Malformed APDU result length.")
-            sw = value[-4:]
-        elif line == "OK":
-            if sw is None:
-                raise LabError("Modem omitted the card status.")
-            return sw
-        elif line == "ERROR" or line.startswith(("+CME ERROR", "+CMS ERROR")):
-            raise LabError("Modem rejected the SELECT command.")
-        else:
-            noise += 1
-            if noise > 200:
-                raise LabError("Unsolicited modem traffic exceeded APDU budget.")
-    raise LabError("No complete APDU reply within five seconds.")
+    from .serial_at import receiver
+    reply = receiver(transport).command(command, duration)
+    if reply.status != 'OK':
+        raise LabError(reply.error or 'لم يكتمل رد SELECT؛ حالة قناة المودم غير محسومة.')
+    matches = [_CSIM_LINE.fullmatch(line) for line in reply.lines if line.startswith('+CSIM:')]
+    if len(matches) != 1 or matches[0] is None:
+        raise LabError('رد المودم لا يحتوي نتيجة بطاقة مكتملة.')
+    match = matches[0]; value = match.group(2).upper()
+    if int(match.group(1)) != len(value) or len(value) < 4 or len(value) % 2:
+        raise LabError('طول رد البطاقة غير مطابق.')
+    return value[-4:]
 
 def _select_master_file_unlocked(device: str, baudrate: int = 115200,
                        factory: Callable | None = None) -> Reading:

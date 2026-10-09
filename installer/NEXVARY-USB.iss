@@ -1,5 +1,5 @@
 #define MyAppName "NEXVARY USB Studio"
-#define MyAppVersion "0.8.0"
+#define MyAppVersion "0.8.1"
 #define MyAppPublisher "NEXVARY"
 #define MyAppExeName "NEXVARY-USB-Studio.exe"
 [Setup]
@@ -28,7 +28,7 @@ WizardImageFile=assets\wizard-large.bmp
 WizardSmallImageFile=assets\wizard-small.bmp
 AppSupportURL=https://github.com/nexvary/NEXVARY-USB/issues
 AppUpdatesURL=https://github.com/nexvary/NEXVARY-USB/releases
-VersionInfoVersion=0.8.0.0
+VersionInfoVersion=0.8.1.0
 VersionInfoCompany=NEXVARY
 VersionInfoDescription=NEXVARY USB modem and USIM management workstation
 [Files]

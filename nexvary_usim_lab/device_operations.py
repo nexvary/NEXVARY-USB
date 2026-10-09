@@ -33,15 +33,21 @@ def _parse_crsm(lines: list[str]) -> Reading:
         if not m:
             continue
         sw1, sw2, raw = int(m.group(1)), int(m.group(2)), m.group(3) or ""
+        if not 0 <= sw1 <= 255 or not 0 <= sw2 <= 255:
+            return Reading('SIM EF ICCID','MALFORMED','رمز حالة غير صحيح','لم نعتبر الرد نجاحًا.')
         if sw1 == 144 and sw2 == 0:
-            # Never expose complete ICCID hex in diagnostic reports.
-            return Reading("SIM EF ICCID", "READABLE",
-                           "READ access confirmed; card data suppressed",
-                           "File 2FE2 reached through AT+CRSM without PIN or modification")
+            if len(raw) != 20:
+                return Reading('SIM EF ICCID','MALFORMED','طول ملف ICCID غير صحيح','SW=9000 وحده لا يثبت قراءة الرقم.')
+            digits = ''.join(raw[i+1]+raw[i] for i in range(0,len(raw),2)).upper()
+            digits = digits.rstrip('F')
+            if not digits.isdecimal() or not 18 <= len(digits) <= 20:
+                return Reading('SIM EF ICCID','MALFORMED','ترميز ICCID غير صحيح','لم نعرض بيانات البطاقة.')
+            return Reading('SIM EF ICCID', 'READABLE', 'ICCID: '+mask_identifier(digits),
+                           'قراءة EF-ICCID عبر CRSM؛ الرقم منقح ولا يثبت AKA.')
         return Reading("SIM EF ICCID", "CARD_STATUS",
                        f"SW={sw1:02X}{sw2:02X}",
                        "Card returned a non-success status; no mutation")
-    return Reading("SIM EF ICCID", "UNSUPPORTED",
+    return Reading("SIM EF ICCID", "UNKNOWN",
                    "No valid CRSM response", "The modem may lack access to this file")
 
 class ATSession:
@@ -79,59 +85,52 @@ class ATSession:
         self._wire.flush()
 
     def _read(self, duration: float = 5, limit: int = 32768, prompt: bool = False, expected: str | None = None) -> tuple[str,list[str]]:
-        deadline = time.monotonic() + duration
-        lines = []
-        total = 0
-        urc_body = False
-        while time.monotonic() < deadline:
-            chunk = self._wire.readline()
-            if not chunk:
-                continue
-            total += len(chunk)
-            if total > limit:
-                raise LabError("Modem response exceeded the safety limit.")
-            line = chunk.decode("ascii", errors="replace").strip()
-            if not line:
-                continue
-            if urc_body:
-                urc_body = False
-                continue
-            if prompt and ">" in line:
-                return "PROMPT", lines
-            if line == "OK":
-                return "OK", lines
-            if line == "ERROR" or line.startswith(("+CME ERROR", "+CMS ERROR")):
-                return "ERROR", lines
-            unsolicited = line.startswith(('^', '%', '+CMTI:', '+CMT:', '+CDS:', '+CREG:', '+CGREG:', '+CEREG:', '+CSSU:'))
-            if unsolicited and not (expected and line.startswith(expected)):
-                if len(self.events) < 64:
-                    self.events.append('UNSOLICITED')  # no raw event content retained
-                urc_body = line.startswith(('+CMT:', '+CDS:'))
-                continue
-            lines.append(line[:1024])
-            if len(lines) > 200:
-                raise LabError("Unbounded modem traffic.")
-        return "TIMEOUT", lines
+        from .serial_at import receiver
+        reply = receiver(self._wire).receive(duration, limit, prompt, expected)
+        self.events = list(receiver(self._wire).events)
+        return reply.status, reply.lines
 
     def _command(self, command: str, duration: float = 5, prompt: bool = False) -> tuple[str,list[str]]:
-        if "\r" in command or "\n" in command or "\x1a" in command:
-            raise LabError("AT command contains control characters.")
-        self._wire.reset_input_buffer()
-        self._write((command+"\r").encode("ascii"))
-        expected = command.split("?")[0].split("=")[0][2:] + ":" if command.startswith("AT+") else None
-        return self._read(duration, prompt=prompt, expected=expected)
+        if self._wire is None:
+            raise LabError('AT session not open')
+        if any(c in command for c in ('\r','\n','\x1a','\x00')):
+            raise LabError('AT command contains control characters.')
+        from .serial_at import receiver
+        try:
+            reply = receiver(self._wire).command(command, duration, prompt)
+        except Exception:
+            receiver(self._wire).uncertain = True
+            raise LabError('تعذر الاتصال بالمودم؛ لم نعد إرسال الأمر.') from None
+        self.events = list(receiver(self._wire).events)
+        return reply.status, reply.lines
+
+    def card_status(self):
+        state, lines = self._command('AT+CPIN?', 4)
+        value = next((x for x in lines if x.startswith('+CPIN:')), '')
+        if state == 'OK' and value:
+            return Reading('SIM status', 'OK', value, 'قراءة فقط؛ لا يُرسل PIN أو PUK.')
+        from .serial_at import receiver
+        reply = receiver(self._wire).last
+        return Reading('SIM status', 'REJECTED' if state == 'ERROR' else state,
+                       reply.error or 'لم تثبت حالة البطاقة على هذا المنفذ.', 'لا تثبت هذه النتيجة تلف الشريحة.')
 
     def sim_file_check(self) -> Reading:
         state, _ = self._command("AT", 3)
         if state != "OK":
             raise LabError("AT channel is not responsive.")
+        card = self.card_status()
+        if card.status != 'OK' or card.value != '+CPIN: READY':
+            return Reading('SIM EF ICCID', 'NEEDS_USER' if card.status == 'OK' else card.status,
+                           'لم تثبت جاهزية الشريحة؛ لم تُرسل قراءة الملف.', card.value)
         state, lines = self._command(ICCID_FILE, 6)
         if state == "ERROR":
-            return Reading("SIM EF ICCID", "UNSUPPORTED", "Modem rejected read-only CRSM",
+            return Reading("SIM EF ICCID", "REJECTED", "المودم رفض قراءة CRSM على المنفذ الحالي",
                            "No secret or mutating command sent")
         if state == "TIMEOUT":
             return Reading("SIM EF ICCID", "TIMEOUT", "No complete modem response",
                            "Cannot infer whether EF is supported")
+        if state != 'OK':
+            return Reading('SIM EF ICCID', state, 'لم تكتمل قراءة الملف؛ لا نعتبرها عدم دعم.', 'لم نعد إرسال الأمر.')
         return _parse_crsm(lines)
 
     def signal(self) -> Reading:

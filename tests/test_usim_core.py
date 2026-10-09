@@ -41,11 +41,11 @@ class CoreTests(unittest.TestCase):
         with self.assertRaises(LabError):NexvaryUsimCore('COM7',factory=fail).inspect()
     def test_directory_timeout_not_silently_returned_as_complete(self):
         class Fake(DemoSerial):
-            ANSWERS={'AT+CRSM=192,12032,0,0,0':('+CRSM: 144,0,"620782054221000B02"','OK'),'AT+CRSM=178,12032,1,4,11':('+CRSM: 144,0,"61094F07'+AID+'"','OK'),'AT+CRSM=178,12032,2,4,11':('ERROR',)}
+            ANSWERS={ 'AT+CPIN?':('+CPIN: READY','OK'), 'AT+CRSM=192,12032,0,0,0':('+CRSM: 144,0,"620782054221000B02"','OK'),'AT+CRSM=178,12032,1,4,11':('+CRSM: 144,0,"61094F07'+AID+'"','OK'),'AT+CRSM=178,12032,2,4,11':('ERROR',)}
         with self.assertRaises(LabError):applications('COM7',factory=Fake)
     def test_core_declared_selected_and_aka_independent(self):
         class Fake(DemoSerial):
-            ANSWERS={'AT+CRSM=192,12032,0,0,0':('+CRSM: 144,0,"620782054221000B01"','OK'),'AT+CRSM=178,12032,1,4,11':('+CRSM: 144,0,"61094F07'+AID+'"','OK'),'AT+CRSM=178,12032,2,4,11':('+CRSM: 106,131','OK'),f'AT+CSIM={len(SELECT)},"{SELECT}"':('+CSIM: 4,"9000"','OK')}
+            ANSWERS={ 'AT+CPIN?':('+CPIN: READY','OK'), 'AT+CRSM=192,12032,0,0,0':('+CRSM: 144,0,"620782054221000B01"','OK'),'AT+CRSM=178,12032,1,4,11':('+CRSM: 144,0,"61094F07'+AID+'"','OK'),'AT+CRSM=178,12032,2,4,11':('+CRSM: 106,131','OK'),f'AT+CSIM={len(SELECT)},"{SELECT}"':('+CSIM: 4,"9000"','OK')}
         rows=NexvaryUsimCore('COM7',factory=Fake).inspect(True)
         self.assertEqual(['DECLARED','SELECTED','UNVERIFIED'],[r.status for r in rows])
     def test_field_reports_retained_with_no_location(self):

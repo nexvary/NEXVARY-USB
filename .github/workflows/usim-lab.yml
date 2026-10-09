@@ -24,7 +24,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libegl1 libgl1 fonts-noto-core
       - run: python -m pip install -r requirements.txt
       - name: Synthetic and reported-evidence regression tests
-        run: python -m unittest discover -s tests -p 'test_*.py' -v
+        run: python scripts/ci_test_report.py
       - name: Offline modem recovery safety regressions on Windows PowerShell 5.1
         if: runner.os == 'Windows'
         shell: powershell
@@ -63,7 +63,11 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: USB-Studio-UI-${{ matrix.os }}
-          path: ui-evidence/
+          path: |
+            ui-evidence/
+            test-evidence/
+            docs/RELEASE-0.8.1-AR.md
+            nexvary_usim_lab/profiles/K3770.json
           if-no-files-found: error
   windows-exe:
     permissions:
@@ -99,13 +103,15 @@ jobs:
       - name: Versioned files and SHA256
         shell: pwsh
         run: |
-          Copy-Item dist/NEXVARY-USB-Studio.exe dist/NEXVARY-USB-Studio-v0.8.0.exe
-          Copy-Item installer-output/NEXVARY-USB-Studio-Setup-v0.8.0.exe dist/
-          Get-ChildItem dist/*v0.8.0.exe | ForEach-Object { $h = Get-FileHash $_.FullName -Algorithm SHA256; "$($h.Hash.ToLower())  $($_.Name)" } | Set-Content dist/SHA256SUMS.txt
+          Copy-Item dist/NEXVARY-USB-Studio.exe dist/NEXVARY-USB-Studio-v0.8.1.exe
+          Copy-Item installer-output/NEXVARY-USB-Studio-Setup-v0.8.1.exe dist/
+          Get-ChildItem dist/*v0.8.1.exe | ForEach-Object { $h = Get-FileHash $_.FullName -Algorithm SHA256; "$($h.Hash.ToLower())  $($_.Name)" } | Set-Content dist/SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: NEXVARY-USB-Studio-v0.8.0-Windows
+          name: NEXVARY-USB-Studio-v0.8.1-Windows
           path: |
-            dist/*v0.8.0.exe
+            dist/*v0.8.1.exe
             dist/SHA256SUMS.txt
+            docs/RELEASE-0.8.1-AR.md
+            nexvary_usim_lab/profiles/K3770.json
           if-no-files-found: error

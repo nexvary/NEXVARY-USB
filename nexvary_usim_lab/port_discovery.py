@@ -1,10 +1,11 @@
 """User-initiated bounded AT discovery, preferences contain no SIM identifiers."""
 import json
 import os
+from datetime import datetime, timezone
 from pathlib import Path
 from .core import LabError, _open_serial, _one_query
 from .coordination import lease
-from .grouping import candidates
+from .grouping import candidates, port_role
 
 def preference_path():
     base = Path(os.environ.get('LOCALAPPDATA', str(Path.home() / '.config')))
@@ -19,28 +20,62 @@ class PortPreferences:
             return data if isinstance(data, dict) else {}
         except (OSError, ValueError): return {}
     def get(self, key): return self.load().get(key)
-    def remember(self, key, port):
-        data = self.load(); data[key] = port
+    def observations(self, key):
+        return self.load().get('capabilities:'+key, {})
+    def record(self, key, port, observation):
+        data = self.load()
+        entries = data.setdefault('capabilities:'+key, {})
+        entries[port] = observation
+        self._save(data)
+    def verify(self, key, port, capability, source):
+        allowed = {'APDU_READY': 'SELECT_MF_9000', 'SIM_ACCESS_READY': 'EF_ICCID_READABLE',
+                   'SMS_READY': 'INBOX_READ_COMPLETE', 'DATA_READY': 'DATA_CONNECTED_VERIFIED'}
+        if allowed.get(capability) != source:
+            raise LabError('Capability requires independent operation evidence.')
+        data = self.load(); entry = data.setdefault('capabilities:'+key, {}).setdefault(port, {})
+        entry.setdefault('states', {})[capability] = 'VERIFIED'
+        entry.setdefault('proofs', {})[capability] = source
+        entry['observed_utc'] = datetime.now(timezone.utc).isoformat()
+        self._save(data)
+    def _save(self, data):
         self.path.parent.mkdir(parents=True, exist_ok=True)
         temp = self.path.with_suffix('.tmp')
         temp.write_text(json.dumps(data, sort_keys=True), encoding='utf-8')
         os.replace(temp, self.path)
+    def remember(self, key, port):
+        data = self.load(); data[key] = port
+        self._save(data)
 
-def _sim_capability(wire):
-    """Non-mutating check of card/network information on one AT endpoint.
 
-    A successful AT alone is insufficient to infer the SIM command channel.
-    Do not treat ERROR as proof of permanent modem incompatibility.
-    """
-    score = 0
-    for command, expected, points in (
-        ('AT+CPIN?', '+CPIN:', 4),
-        ('AT+CSQ', '+CSQ:', 2),
-    ):
+class CapabilityEvidence:
+    """Independent observations; syntax probes never establish APDU/SMS/data readiness."""
+    def __init__(self):
+        self.states = {name: 'UNKNOWN' for name in
+                       ('AT_READY','SIM_ACCESS_READY','APDU_READY','SMS_READY','DATA_READY')}
+        self.commands = {}
+        self.score = 0
+    def observe(self, command, state, value):
+        # Store only status, not identifiers or network-location data.
+        self.commands[command] = state
+        if command == 'AT' and state == 'OK': self.states['AT_READY'] = 'VERIFIED'
+        if command == 'AT+CPIN?' and state == 'OK' and value == '+CPIN: READY':
+            self.states['SIM_ACCESS_READY'] = 'VERIFIED'; self.score += 4
+        elif command == 'AT+CPIN?' and state == 'OK' and '+CPIN:' in value:
+            self.states['SIM_ACCESS_READY'] = 'NEEDS_USER'; self.score += 3
+        if command == 'AT+CSQ' and state == 'OK' and '+CSQ:' in value: self.score += 2
+    def public_dict(self, role):
+        return dict(states=self.states,commands=self.commands,role=role,
+                    observed_utc=datetime.now(timezone.utc).isoformat(),
+                    classification='serial-session observation; injected fixtures are synthetic')
+
+
+def _sim_capability(wire, evidence=None):
+    evidence = evidence or CapabilityEvidence()
+    for command in ('AT+CPIN?', 'AT+CSQ'):
         state, value = _one_query(wire, command, 2)
-        if state == 'OK' and expected in value:
-            score += points
-    return score
+        evidence.observe(command, state, value)
+        if state in ('TIMEOUT','IO_ERROR','NOISY','SESSION_UNCERTAIN'): break
+    return evidence.score
 
 
 def discover_at(device, preferences=None, factory=None, include_diagnostics=False,
@@ -54,8 +89,14 @@ def discover_at(device, preferences=None, factory=None, include_diagnostics=Fals
             with lease(p.device):
                 wire = (factory or _open_serial)(p.device,115200)
                 try:
-                    state, _ = _one_query(wire, 'AT', 2)
-                    score = _sim_capability(wire) if state == 'OK' and assess_sim else 0
+                    evidence = CapabilityEvidence()
+                    state, value = _one_query(wire, 'AT', 2)
+                    evidence.observe('AT', state, value)
+                    score = _sim_capability(wire, evidence) if state == 'OK' and assess_sim else 0
+                    observation = evidence.public_dict(port_role(p))
+                    observation['classification'] = 'synthetic injected transport' if factory else 'live serial observation'
+                    try: pref.record(device.key, p.device, observation)
+                    except OSError: pass
                 finally:
                     wire.close()
             if state == 'OK':

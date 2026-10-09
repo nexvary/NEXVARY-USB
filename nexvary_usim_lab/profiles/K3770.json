@@ -31,7 +31,9 @@
     "Exact USB ID does not uniquely identify model",
     "AKA / Arabic SMS / data connection not hardware verified",
     "CCHO/CGLA/AT+CCID timed out on COM5/COM7; support unknown, not definitively unsupported",
-    "SELECT MF success does not establish USIM AID, AKA, ISIM, IMS or ePDG"
+    "SELECT MF success does not establish USIM AID, AKA, ISIM, IMS or ePDG",
+    "Incomplete AT reply now stops that session; no late final is reused",
+    "Preferred CRSM is used only after exact reported manufacturer/model/firmware and SIM READY match; no fixed COM number"
   ],
   "last_verified_evidence": {
     "source": "owner-supplied device reports (sanitized fixtures tests/field-evidence)",
@@ -68,6 +70,39 @@
       "ef_iccid": "READABLE via CRSM",
       "aka": "not tested",
       "classification": "Owner-supplied physical-device report; not independently retested"
+    }
+  ],
+  "preferred_iccid_method": "CRSM_EF_2FE2",
+  "port_roles": {
+    "COM5": "candidate; role must be identified from current Windows metadata",
+    "COM6": "Diagnostics (owner observation)",
+    "COM7": "Secondary Modem (owner observation)"
+  },
+  "compatibility_confidence": {
+    "at": "owner supplied observed evidence",
+    "iccid_crsm_com5": "owner supplied observed evidence; port not hardcoded",
+    "apdu_select_mf": "owner supplied observed evidence",
+    "usim_aka": "not verified",
+    "sms": "not hardware verified",
+    "data": "not hardware verified"
+  },
+  "timeout_patterns": [
+    "AT+CCID / CCHO / CGLA: incomplete replies on retained COM5 and COM7 reports"
+  ],
+  "unresolved_observations": [
+    {
+      "source": "current user task, 2026-10-09; summary without new raw capture",
+      "classification": "owner supplied result summary; root cause unconfirmed",
+      "results": {
+        "CPIN": "rejected",
+        "CSQ": "rejected",
+        "CREG": "rejected",
+        "ICCID": "timeout",
+        "CSIM syntax": "OK",
+        "CRSM syntax": "rejected",
+        "EF_DIR": "modem error"
+      },
+      "interpretation": "not proof of absent card, unsupported command, or AKA failure"
     }
   ]
 }

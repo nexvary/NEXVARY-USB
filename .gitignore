@@ -20,3 +20,5 @@ assets/*.png
 assets/*.bmp
 
 previous-installer/
+
+/test-evidence/
