@@ -4,7 +4,7 @@ import json
 import queue
 import threading
 from pathlib import Path
-from PySide6.QtCore import Qt, QTimer, QSize, QByteArray
+from PySide6.QtCore import Qt, QTimer, QSize, QByteArray, QEvent, QCoreApplication
 from PySide6.QtGui import QIcon, QPixmap, QPainter, QColor, QFontDatabase, QFont
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
@@ -452,9 +452,19 @@ def main():
             opened=[]
             for key in ui.pages:
                 ui.show(key);app.processEvents();opened.append(key)
-            Path(marker).write_text(json.dumps({'pages':opened,'version':__version__}),encoding='utf-8')
+            try:
+                pcsc_run()
+                pcsc_check='native inventory completed'
+            except LabError as exc:
+                if 'مهلة' in str(exc) or 'worker unavailable' in str(exc):raise
+                pcsc_check='native service unavailable; child returned safely'
+            Path(marker).write_text(json.dumps({'pages':opened,'version':__version__,'pcsc_child':pcsc_check}),encoding='utf-8')
+            ui.close()
             app.quit()
         QTimer.singleShot(1500,smoke)
-    return app.exec()
+    result=app.exec()
+    ui.close();ui.deleteLater()
+    QCoreApplication.sendPostedEvents(None,QEvent.DeferredDelete)
+    return result
 
 App=Workstation

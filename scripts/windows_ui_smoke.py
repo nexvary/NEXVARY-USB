@@ -47,6 +47,18 @@ ui.resize(int(1366/scale),int(768/scale));ui.display_inventory(Inventory('COM_AV
 ui.connection_label.setText('اختبار واجهة ببيانات اصطناعية — لا نتائج فحص أجهزة فعلية')
 assert len(ui.devices)==2 and len(ui.devices[0].interfaces)==3
 assert ui.grab().save(str(out/f'1366x768-scale{scale:g}-devices-synthetic.png'))
+# Actual decoded UCS2 fixture displayed in the running UI, explicitly synthetic.
+from nexvary_usim_lab.pdu import deliver
+from nexvary_usim_lab.gui import rows
+payload='مرحبا من NEXVARY'.encode('utf-16-be')
+pdu='00000C91020100000000000862109021436500'+f'{len(payload):02X}'+payload.hex()
+message=deliver(pdu)
+ui.show('sms');rows(ui.sms_table,[('1','********0000','REC READ — محاكاة',message['text'])]);ui.sms_status.setText('اختبار PDU ببيانات اصطناعية — ليست رسالة مستلمة من جهاز فعلي');app.processEvents()
+scroll=ui.pages['sms'][0];scroll.ensureWidgetVisible(ui.sms_table);app.processEvents()
+assert ui.grab().save(str(out/f'1366x768-scale{scale:g}-sms-pdu-synthetic.png'))
+ui.show('network');scroll=ui.pages['network'][0];scroll.ensureWidgetVisible(ui.data_status);app.processEvents()
+assert ui.grab().save(str(out/f'1366x768-scale{scale:g}-network-data-controls-no-hardware.png'))
+ui.show('devices');app.processEvents()
 # Back is exercised through an actual button click, not only direct methods.
 QTest.mouseClick(ui.nav['sim'],Qt.LeftButton);app.processEvents();QTest.mouseClick(ui.back_button,Qt.LeftButton);app.processEvents();assert ui.current_page=='devices'
 (out/f'layout-checks-scale{scale:g}.json').write_text(json.dumps(checks,indent=2),encoding='utf-8')
