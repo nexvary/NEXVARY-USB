@@ -430,11 +430,12 @@ class Workstation(QMainWindow):
         if not self.selected:
             QMessageBox.information(self,'اختر الجهاز','اختر بطاقة الجهاز من مركز الفلاشات أولًا.');self.show('devices');return False
         return True
-    def _with_port(self,title,fn,callback):
+    def _with_port(self,title,fn,callback,assess_sim=False):
         if not self._require_port():return
         device=self.selected;known=self.active_port
         def work():
-            port=known or discover_at(device,self.preferences)[0]
+            port=(discover_at(device,self.preferences,assess_sim=True)[0]
+                  if assess_sim else (known or discover_at(device,self.preferences)[0]))
             return port,fn(port)
         def done(value):
             self.active_port,result=value
@@ -476,7 +477,7 @@ class Workstation(QMainWindow):
         def done(report):
             self.report=report;self.reports[self.selected.key]=report;self._populate_readings(report.readings)
             values={r.name:r for r in report.readings}
-            connection=values['Connection'].status=='OK';ready='READY' in values['SIM status'].value
+            connection=values['Connection'].status=='OK';ready=(values['SIM status'].status=='OK' and 'READY' in values['SIM status'].value)
             self.card_label.setText(('تم الاتصال بالمودم بنجاح' if connection else 'لم يثبت الاتصال بالمودم')+
                 ('، الشريحة جاهزة' if ready else '، راجع حالة الشريحة')+'؛ الوصول إلى APDU يحتاج اختبارًا مستقلًا.')
             self._render_cards()
@@ -486,7 +487,7 @@ class Workstation(QMainWindow):
                 self._guide_update()
                 if self.current_page=='guide':self.show('guide')
             else:self.show('sim')
-        self._with_port('فحص المودم والشريحة',probe,done)
+        self._with_port('فحص المودم والشريحة',probe,done,assess_sim=True)
     def check_ef(self):
         if not self._require_port() or not self._confirm('قراءة الشريحة','تأكيد ملكية الشريحة والموافقة على قراءة EF-ICCID دون عرض الرقم الكامل؟'):return
         self._with_port('EF-ICCID',lambda p:self._session(p,lambda s:s.sim_file_check()),self._show_reading)

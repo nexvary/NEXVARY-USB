@@ -51,3 +51,50 @@ class GroupingTests(unittest.TestCase):
         data=inventory()
         data=replace(data,devices=[replace(x,container='12345678-1111-2222-3333-123456789000') for x in data.devices])
         self.assertEqual(2,len(group_devices(data)))
+
+class CapabilitySelectionTests(unittest.TestCase):
+    def test_prefers_sim_capable_port_over_old_at_only_preference(self):
+        with tempfile.TemporaryDirectory() as dirname:
+            pref=PortPreferences(Path(dirname)/'ports.json')
+            device=group_devices(inventory())[0]
+            from nexvary_usim_lab.core import Port
+            device.ports=[
+                Port('COM7','Vodafone Secondary Modem','Huawei','12D1','14C9'),
+                Port('COM5','Vodafone Primary Modem','Huawei','12D1','14C9'),
+            ]
+            pref.remember(device.key,'COM7')
+            calls=[]
+            class Modem(DemoSerial):
+                def __init__(self,port,speed):
+                    super().__init__(port,speed)
+                    self.port=port
+                def write(self,data):
+                    calls.append((self.port,data.decode().strip()))
+                    super().write(data)
+                    if self.port=='COM7' and data.decode().strip() in ('AT+CPIN?','AT+CSQ'):
+                        self.pending=[b'ERROR\\r\\n']
+            selected, failures=discover_at(device,pref,Modem,assess_sim=True)
+            self.assertEqual('COM5',selected)
+            self.assertEqual('COM5',pref.get(device.key))
+            self.assertNotIn(('COM7','AT+CGMR'),calls)
+            self.assertTrue(any(p=='COM7' and 'unverified' in status for p,status in failures))
+
+    def test_no_sim_response_does_not_claim_unsupported_hardware(self):
+        with tempfile.TemporaryDirectory() as dirname:
+            pref=PortPreferences(Path(dirname)/'ports.json')
+            device=group_devices(inventory())[0]
+            class ATOnly(DemoSerial):
+                ANSWERS=dict(DemoSerial.ANSWERS,**{'AT+CPIN?':('ERROR',),'AT+CSQ':('ERROR',)})
+            selected, fail=discover_at(device,pref,ATOnly,assess_sim=True)
+            self.assertEqual('COM7',selected)
+            self.assertTrue(any('unverified' in x[1] for x in fail))
+            self.assertIsNone(pref.get(device.key))
+
+    def test_unsolicited_network_reports_do_not_misclassify_sim(self):
+        with tempfile.TemporaryDirectory() as dirname:
+            device=group_devices(inventory())[0]
+            class Noisy(DemoSerial):
+                ANSWERS=dict(DemoSerial.ANSWERS,**{
+                    'AT+CPIN?':('+CREG: 2,1', '+CPIN: READY','OK'),
+                    'AT+CSQ':('+CMTI: "SM",2','+CSQ: 18,0','OK')})
+            self.assertEqual('COM7',discover_at(device,PortPreferences(Path(dirname)/'prefs.json'),Noisy,assess_sim=True)[0])

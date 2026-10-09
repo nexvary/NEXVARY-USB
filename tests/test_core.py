@@ -25,7 +25,7 @@ class CoreTests(unittest.TestCase):
         self.assertNotIn("89882123456789012345", output)
         self.assertIn("2345", output)
         self.assertIn("OFFLINE-DEMO", output)
-        self.assertIn("UNSUPPORTED", output)
+        self.assertIn("REJECTED", output)
         self.assertTrue(json.loads(output)["simulated"])
 
     def test_real_probe_contract_with_injected_serial(self):
@@ -51,7 +51,7 @@ class CoreTests(unittest.TestCase):
     def test_transport_times_out_and_rejects_errors(self):
         transport = DemoSerial("COM1", 115200)
         state, _ = _one_query(transport, "AT+CGLA=?", deadline_seconds=0.2)
-        self.assertEqual("UNSUPPORTED", state)
+        self.assertEqual("REJECTED", state)
         class NoReply(DemoSerial):
             def readline(self): return b""
         state, _ = _one_query(NoReply("COM1", 115200), "AT", deadline_seconds=0.2)

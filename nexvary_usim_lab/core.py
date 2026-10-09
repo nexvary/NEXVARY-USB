@@ -140,8 +140,15 @@ def _one_query(transport, command: str, deadline_seconds: float = 4) -> tuple[st
                 continue
             if line == "OK":
                 return "OK", redact(" | ".join(output)) or "OK"
-            if line == "ERROR" or line.startswith(("+CME ERROR", "+CMS ERROR")):
-                return "UNSUPPORTED", "Modem rejected this command"
+            if line == "ERROR":
+                return "REJECTED", "Modem returned ERROR; command support is not established"
+            if line.startswith(("+CME ERROR", "+CMS ERROR")):
+                # Numeric error codes may explain transient SIM or modem state.
+                # Do not log vendor text or subscription identifiers.
+                match = re.fullmatch(r"\\+(?:CME|CMS) ERROR:\\s*(\\d{1,4})", line)
+                category = "CME" if line.startswith("+CME") else "CMS"
+                code = (" " + match.group(1)) if match else ""
+                return "REJECTED", "Modem returned " + category + code + "; inspect SIM/driver/port state"
             if (expected_prefix and line.startswith(expected_prefix)) or (
                 command == "AT+CCID" and line.isdecimal() and 18 <= len(line) <= 22
             ):

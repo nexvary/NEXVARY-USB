@@ -26,7 +26,10 @@ def explain_report(report):
     sim=values.get('SIM status')
     if sim and sim.status=='OK' and 'READY' in sim.value:result.append('الشريحة جاهزة للاستخدام.')
     elif sim and sim.status=='OK' and 'SIM PIN' in sim.value:result.append('الشريحة تطلب PIN. أدخله من برنامج المشغل الموثوق؛ هذا البرنامج لا يرسل PIN تلقائيًا.')
-    else:result.append('جاهزية الشريحة لم تثبت؛ راجع حالة الشريحة قبل استخدام الرسائل أو البيانات.')
+    else:
+        result.append('جاهزية الشريحة لم تثبت في الجلسة الحالية؛ هذه النتيجة لا تثبت أن الشريحة غير مدعومة.')
+        if sim and sim.status=='REJECTED':
+            result.append('منفذ AT استجاب، لكن أمر حالة الشريحة رُفض. قد تختلف وظائف منافذ المودم أو تكون هناك مشكلة مؤقتة في التعريف أو الجلسة.')
     registration=values.get('Registration')
     if registration and registration.status=='OK':
         import re
