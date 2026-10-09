@@ -85,7 +85,9 @@ def rows(t,data):
     t.setRowCount(len(data))
     for i,row in enumerate(data):
         for j,value in enumerate(row):
-            item=QTableWidgetItem(str(value));item.setToolTip(str(value))
+            text=str(value)
+            display="\u2066"+text+"\u2069" if text.isascii() else text
+            item=QTableWidgetItem(display);item.setToolTip(text)
             item.setTextAlignment(Qt.AlignRight|Qt.AlignVCenter)
             t.setItem(i,j,item)
     t.resizeRowsToContents()
@@ -254,8 +256,8 @@ class Workstation(QMainWindow):
         b.addWidget(button('حفظ APN بموافقتي',self.set_apn,'network'));v.addWidget(box)
         box,b=panel();b.addWidget(label('اتصال البيانات عبر خدمة النظام — قد تُحتسب رسوم','gold'))
         self.data_backend=QComboBox();self.data_backend.addItems(['WWAN / NetworkManager','Windows RAS — مودم COM قديم']);b.addWidget(self.data_backend)
-        self.data_interface=QLineEdit();self.data_interface.setPlaceholderText('واجهة WWAN في Windows أو جهاز GSM في Linux');b.addWidget(self.data_interface)
-        self.data_profile=QLineEdit();self.data_profile.setPlaceholderText('اسم ملف Windows أو UUID ملف GSM في Linux');b.addWidget(self.data_profile)
+        self.data_interface=QLineEdit();self.data_interface.setLayoutDirection(Qt.LeftToRight);self.data_interface.setPlaceholderText('واجهة WWAN في Windows أو جهاز GSM في Linux');b.addWidget(self.data_interface)
+        self.data_profile=QLineEdit();self.data_profile.setLayoutDirection(Qt.LeftToRight);self.data_profile.setPlaceholderText('اسم ملف Windows أو UUID ملف GSM في Linux');b.addWidget(self.data_profile)
         self._actions(b,[('واجهات النظام',self.data_inventory,'network',False),('ملفات الاتصال',self.data_profiles,'network',False),('تشغيل البيانات',lambda:self.data_change(True),'network',True),('إيقاف البيانات',lambda:self.data_change(False),'network',False)])
         self.data_status=label('QMI/MBIM في Linux عبر خدمات النظام؛ Windows عبر WWAN أو ملف RAS بيانات *99 موجود للمودم القديم. اختر الملف الذي يخص جهازك.','muted');b.addWidget(self.data_status);v.addWidget(box);v.addStretch()
 
