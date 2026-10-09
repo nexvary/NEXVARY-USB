@@ -72,7 +72,7 @@ class CapabilitySelectionTests(unittest.TestCase):
                     calls.append((self.port,data.decode().strip()))
                     super().write(data)
                     if self.port=='COM7' and data.decode().strip() in ('AT+CPIN?','AT+CSQ'):
-                        self.pending=[b'ERROR\\r\\n']
+                        self.pending=[b'ERROR\r\n']
             selected, failures=discover_at(device,pref,Modem,assess_sim=True)
             self.assertEqual('COM5',selected)
             self.assertEqual('COM5',pref.get(device.key))
