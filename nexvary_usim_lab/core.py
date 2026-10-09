@@ -145,7 +145,7 @@ def _one_query(transport, command: str, deadline_seconds: float = 4) -> tuple[st
             if line.startswith(("+CME ERROR", "+CMS ERROR")):
                 # Numeric error codes may explain transient SIM or modem state.
                 # Do not log vendor text or subscription identifiers.
-                match = re.fullmatch(r"\\+(?:CME|CMS) ERROR:\\s*(\\d{1,4})", line)
+                match = re.fullmatch(r"\+(?:CME|CMS) ERROR:\s*(\d{1,4})", line)
                 category = "CME" if line.startswith("+CME") else "CMS"
                 code = (" " + match.group(1)) if match else ""
                 return "REJECTED", "Modem returned " + category + code + "; inspect SIM/driver/port state"
