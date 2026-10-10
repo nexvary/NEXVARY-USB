@@ -61,7 +61,7 @@ struct Package {
     std::wstring base=ownDirectory(),inf=base+L"\\NEXVARYVirtualSIMReader.inf",dll=base+L"\\NEXVARYVirtualSIMReader.dll",cat=base+L"\\nexvaryvirtualsimreader.cat";
     Handle infFile,dllFile,catFile;
     LONG signature=TRUST_E_NOSIGNATURE,infTrust=TRUST_E_NOSIGNATURE,dllTrust=TRUST_E_NOSIGNATURE;
-    bool complete=false,identity=false;
+    bool complete=false,identity=false,hardwareIdentity=false,classIdentity=false,binaryIdentity=false;
     Package(){
         infFile.value=CreateFileW(inf.c_str(),GENERIC_READ,FILE_SHARE_READ,nullptr,OPEN_EXISTING,0,nullptr);
         dllFile.value=CreateFileW(dll.c_str(),GENERIC_READ,FILE_SHARE_READ,nullptr,OPEN_EXISTING,0,nullptr);
@@ -71,9 +71,14 @@ struct Package {
         HINF parsed=SetupOpenInfFileW(inf.c_str(),nullptr,INF_STYLE_WIN4,nullptr);
         if(parsed!=INVALID_HANDLE_VALUE){
             INFCONTEXT line={};wchar_t id[256]={};wchar_t classId[128]={};wchar_t binary[256]={};
-            identity=SetupFindFirstLineW(parsed,L"Standard.NTamd64",nullptr,&line) && SetupGetStringFieldW(&line,2,id,256,nullptr) && _wcsicmp(id,HardwareId)==0;
-            identity=identity && SetupFindFirstLineW(parsed,L"Version",L"ClassGuid",&line) && SetupGetStringFieldW(&line,1,classId,128,nullptr) && _wcsicmp(classId,L"{50dd5230-ba8a-11d1-bf5d-0000f805f530}")==0;
-            identity=identity && SetupFindFirstLineW(parsed,L"NEXVARYVirtualSIMReader_Install",L"ServiceBinary",&line) && SetupGetStringFieldW(&line,1,binary,256,nullptr) && _wcsicmp(binary,L"%12%\\UMDF\\NEXVARYVirtualSIMReader.dll")==0;
+            hardwareIdentity=SetupFindFirstLineW(parsed,L"Standard.NTamd64",nullptr,&line) && SetupGetStringFieldW(&line,2,id,256,nullptr) && _wcsicmp(id,HardwareId)==0;
+            classIdentity=SetupFindFirstLineW(parsed,L"Version",L"ClassGuid",&line) && SetupGetStringFieldW(&line,1,classId,128,nullptr) && _wcsicmp(classId,L"{50dd5230-ba8a-11d1-bf5d-0000f805f530}")==0;
+            if(SetupFindFirstLineW(parsed,L"NEXVARYVirtualSIMReader_Install",L"ServiceBinary",&line) && SetupGetStringFieldW(&line,1,binary,256,nullptr)){
+                wchar_t system[32768]={};UINT length=GetSystemDirectoryW(system,32768);
+                std::wstring expanded=std::wstring(system)+L"\\drivers\\UMDF\\NEXVARYVirtualSIMReader.dll";
+                binaryIdentity=_wcsicmp(binary,L"%12%\\UMDF\\NEXVARYVirtualSIMReader.dll")==0 || (length>0 && length<32768 && _wcsicmp(binary,expanded.c_str())==0);
+            }
+            identity=hardwareIdentity && classIdentity && binaryIdentity;
             SetupCloseInfFile(parsed);
         }
         signature=verifyFile(cat);if(signature!=ERROR_SUCCESS)return;
@@ -113,9 +118,20 @@ static bool pcscStatus(){
     std::cout<<",\"pcsc_status\":"<<static_cast<unsigned long>(status)<<",\"pcsc_readers\":"<<readers<<",\"nexvary_reader_enumerated\":"<<(found?"true":"false")<<",\"card_connected\":false,\"apdu_tested\":false";
     return found;
 }
+static bool runtimeFilesPresent(){
+    wchar_t system[32768]={};UINT size=GetSystemDirectoryW(system,32768);
+    if(!size || size>=32768)return false;
+    for(const wchar_t* name:{L"MSVCP140.dll",L"VCRUNTIME140.dll",L"VCRUNTIME140_1.dll"}){
+        std::wstring file=std::wstring(system)+L"\\"+name;
+        DWORD attr=GetFileAttributesW(file.c_str());if(attr==INVALID_FILE_ATTRIBUTES || (attr&FILE_ATTRIBUTE_DIRECTORY))return false;
+    }
+    return true;
+}
 static int inspect(Package& p,bool dialog=false){
     unsigned devices=ownDevices();
     std::cout<<"{\"schema\":\"nexvary.reader-setup.v1\",\"package_complete\":"<<(p.complete?"true":"false")<<",\"inf_identity_valid\":"<<(p.identity?"true":"false")<<",\"trusted_package\":"<<(p.trusted()?"true":"false")<<",\"catalog_trust_status\":"<<static_cast<unsigned long>(p.signature)<<",\"inf_trust_status\":"<<static_cast<unsigned long>(p.infTrust)<<",\"dll_trust_status\":"<<static_cast<unsigned long>(p.dllTrust)<<",\"own_root_devices\":"<<devices;
+    std::cout<<",\"inf_hardware_identity\":"<<(p.hardwareIdentity?"true":"false")<<",\"inf_class_identity\":"<<(p.classIdentity?"true":"false")<<",\"inf_binary_identity\":"<<(p.binaryIdentity?"true":"false");
+    std::cout<<",\"vc_runtime_files_present\":"<<(runtimeFilesPresent()?"true":"false");
     bool enumerated=pcscStatus();std::cout<<"}\n";
     if(dialog){
         std::wstring message=L"توقيع الحزمة وسلامتها: ";
@@ -133,6 +149,7 @@ static int install(Package& p){
     // All authentication and integrity gates precede device creation or driver-store writes.
     if(!p.trusted()){std::cerr<<"BLOCKED: package is missing, mismatched, unsigned, untrusted or changed. No device created.\n";return 20;}
     if(!IsUserAnAdmin()){std::cerr<<"Administrator elevation required.\n";return 21;}
+    if(!runtimeFilesPresent()){std::cerr<<"Visual C++ x64 runtime files are missing. No device created.\n";return 24;}
     unsigned count=ownDevices();if(count>1){std::cerr<<"Multiple NEXVARY root devices; inspect before installation.\n";return 22;}
     if(count==1){std::cout<<"Existing NEXVARY device preserved; no duplicate or forced driver update.\n";return inspect(p);}
     Devices list;list.value=SetupDiCreateDeviceInfoList(&ReaderClass,nullptr);require(list.value!=INVALID_HANDLE_VALUE,"Create device list");

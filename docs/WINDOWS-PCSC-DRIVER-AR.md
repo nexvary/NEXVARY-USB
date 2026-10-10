@@ -52,3 +52,10 @@ Direct CSIM وتشخيص USB Studio يعملان دون هذا التعريف. �
 - https://learn.microsoft.com/en-us/windows/win32/api/wintrust/ns-wintrust-wintrust_catalog_info
 - https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdicreatedeviceinfow
 - https://learn.microsoft.com/en-us/windows/win32/api/newdev/nf-newdev-updatedriverforplugandplaydevicesw
+
+
+يتطلب DLL القارئ مكتبات Visual C++ x64 ‏MSVCP140/VCRUNTIME140/VCRUNTIME140_1 في System32. تفحص الأداة وجودها قبل إنشاء الجهاز؛ وجود الملفات وحده لا يثبت توافق جميع نسخها. أداة الفحص نفسها مبنية /MT ولا تحتاج تنزيل تلك المكتبات لتشغيلها. تُنزّل التبعيات من Microsoft عند الحاجة، ولا يثبتها الفحص تلقائيًا:
+https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist
+
+NEXVARY-Unsigned-Signing-Input.cab يجمع DLL وINF وCAT وPDB في مجلد حزمة واحد لتسليمه إلى جهة توقيع مخولة. هذا مدخل غير موقع، وليس طلبًا مقبولًا أو شهادة أو إثبات توافق. لم نوقّع CAB أو نقدمه. مسار النشر العام يحتاج مراجعة متطلبات Windows المستهدف وWHCP/HLK؛ توثيق Microsoft الحالي يقيد attestation بسيناريوهات اختبار، لذلك لا نعتمده كإثبات صلاحية توزيع عام:
+https://learn.microsoft.com/en-us/windows-hardware/drivers/dashboard/code-signing-attestation

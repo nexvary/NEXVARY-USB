@@ -44,3 +44,27 @@ $manifest.setup_helper_built = $true
 $manifest.trusted_install_tested = $false
 $manifest | ConvertTo-Json | Set-Content "$Output\BUILD-EVIDENCE.json"
 Get-ChildItem $Output -File | Where-Object { $_.Extension -in '.dll','.inf','.cat','.ini','.exe','.cmd' } | ForEach-Object { "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower())  $($_.Name)" } | Set-Content "$Output\SHA256SUMS.txt"
+
+# Unsigned input CAB for an authorized signing/certification process, not a signed submission.
+$ddf = Join-Path $Output 'SIGNING-INPUT.ddf'
+@"
+.OPTION EXPLICIT
+.Set CabinetNameTemplate=NEXVARY-Unsigned-Signing-Input.cab
+.Set DiskDirectoryTemplate="$Output"
+.Set DestinationDir=NEXVARYVirtualSIMReader
+.Set CompressionType=MSZIP
+.Set Cabinet=on
+.Set Compress=on
+.Set MaxDiskSize=0
+.Set MaxCabinetSize=0
+"$Output\NEXVARYVirtualSIMReader.inf"
+"$Output\NEXVARYVirtualSIMReader.dll"
+"$Output\NEXVARYVirtualSIMReader.pdb"
+"$Output\nexvaryvirtualsimreader.cat"
+"@ | Set-Content -Encoding ascii $ddf
+& makecab /F $ddf
+$manifest.signing_input_cab_built = $true
+$manifest.signing_submitted = $false
+$manifest | ConvertTo-Json | Set-Content "$Output\BUILD-EVIDENCE.json"
+
+& expand.exe -D "$Output\NEXVARY-Unsigned-Signing-Input.cab" | Out-File "$Output\CAB-CONTENTS.txt"
