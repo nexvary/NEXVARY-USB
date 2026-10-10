@@ -54,3 +54,59 @@ class CoreTests(unittest.TestCase):
             raw=path.read_text(encoding="utf-8");d=json.loads(raw);self.assertIs(False,d['simulated']);self.assertEqual('0.6.0',d['version']);rows={r['name']:r for r in d['readings']}
             self.assertEqual('SW=9000',rows['APDU SELECT MF']['value']);self.assertEqual('TIMEOUT',rows['CCHO probe']['status']);self.assertNotIn('007ECF',raw);self.assertNotIn('A10F',raw)
             if d['device']=='COM7':self.assertNotIn('SIM EF ICCID',rows)
+
+
+class EfDirMetadataFallbackTests(unittest.TestCase):
+    """Synthetic regression only; no card or modem is accessed by the test."""
+    def test_empty_success_uses_one_safe_15_byte_header_read(self):
+        legacy=bytes([0,0,0,22,0x2f,0,4,0,0,0,0,1,2,1,11]).hex().upper()
+        class Fake(DemoSerial):
+            ANSWERS={
+                'AT+CPIN?':('+CPIN: READY','OK'),
+                'AT+CRSM=192,12032,0,0,0':('+CRSM: 144,0','OK'),
+                'AT+CRSM=192,12032,0,0,15':('+CRSM: 144,0,"'+legacy+'"','OK'),
+                'AT+CRSM=178,12032,1,4,11':('+CRSM: 144,0,"61094F07'+AID+'"','OK'),
+                'AT+CRSM=178,12032,2,4,11':('+CRSM: 106,131','OK'),
+            }
+            sent=[]
+            def write(self,data):
+                self.sent.append(data.decode('ascii').strip())
+                super().write(data)
+        Fake.sent=[]
+        result=applications('COM7',factory=Fake)
+        self.assertEqual('DECLARED',result[0].status)
+        self.assertIn('USIM',result[0].value)
+        self.assertEqual(1,Fake.sent.count('AT+CRSM=192,12032,0,0,15'))
+        self.assertFalse(any('+CCHO' in x or '+CGLA' in x for x in Fake.sent))
+
+    def test_empty_15_byte_response_is_still_unknown(self):
+        from nexvary_usim_lab.sim_inspector import DirectoryFailure
+        class Fake(DemoSerial):
+            ANSWERS={
+                'AT+CPIN?':('+CPIN: READY','OK'),
+                'AT+CRSM=192,12032,0,0,0':('+CRSM: 144,0','OK'),
+                'AT+CRSM=192,12032,0,0,15':('+CRSM: 144,0','OK')}
+        with self.assertRaises(DirectoryFailure) as error:
+            applications('COM7',factory=Fake)
+        self.assertEqual('UNKNOWN',error.exception.status)
+        self.assertIn('15',str(error.exception))
+
+    def test_timeout_never_triggers_a_second_read(self):
+        from unittest.mock import patch
+        from nexvary_usim_lab.sim_inspector import DirectoryFailure
+        class Fake(DemoSerial):
+            ANSWERS={'AT+CPIN?':('+CPIN: READY','OK')}
+        with patch('nexvary_usim_lab.sim_inspector._crsm',
+                   side_effect=DirectoryFailure('TIMEOUT','partial response')) as read:
+            with self.assertRaises(DirectoryFailure) as error:
+                applications('COM7',factory=Fake)
+        self.assertEqual('TIMEOUT',error.exception.status)
+        self.assertEqual(1,read.call_count)
+
+    def test_unquoted_crsm_header_supported(self):
+        from nexvary_usim_lab.sim_inspector import _crsm
+        class Session:
+            def _command(self,command,duration):
+                return 'OK',['+CRSM: 144,0,620782054221000B01']
+        self.assertEqual(bytes.fromhex('620782054221000B01'),
+                         _crsm(Session(),'AT+CRSM=192,12032,0,0,0'))

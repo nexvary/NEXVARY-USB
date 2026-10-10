@@ -1,3 +1,11 @@
+# NEXVARY USB Studio 0.8.3 — EF_DIR metadata fallback
+
+A complete, successful but empty CRSM GET RESPONSE for EF_DIR (2F00) now triggers
+one fixed 15-byte legacy header read. No retry is made for timed-out, rejected,
+or incomplete commands. A second empty answer is UNKNOWN, not proof of SIM/USIM
+absence. Quoted or unquoted hexadecimal metadata is accepted. These tests are
+synthetic; Huawei K3770 behavior must still be verified on real hardware.
+
 # NEXVARY USB Studio 0.8.2 — WiFi-Call capability evidence
 
 Windows **التقارير → دليل قدرات WiFi-Call** exports the current device report

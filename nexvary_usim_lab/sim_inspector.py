@@ -33,7 +33,7 @@ def _crsm(session,command):
     state,lines=session._command(command,6)
     if state=='TIMEOUT':raise DirectoryFailure('TIMEOUT','قراءة دليل تطبيقات SIM انتهت بمهلة؛ لا يثبت عدم الدعم.')
     if state!='OK':raise DirectoryFailure('MODEM_ERROR','المودم رفض قراءة EF_DIR.')
-    matches=[re.fullmatch(r'\+CRSM:\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*"([A-Fa-f0-9]*)")?',x) for x in lines if x.startswith('+CRSM:')]
+    matches=[re.fullmatch(r'\+CRSM:\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*"?([A-Fa-f0-9]*)"?)?',x) for x in lines if x.startswith('+CRSM:')]
     if len(matches)!=1 or matches[0] is None:raise LabError('استجابة CRSM غير صحيحة.')
     m=matches[0];sw=(int(m[1]),int(m[2]));raw=m[3] or ''
     if any(not 0<=x<=255 for x in sw):raise LabError('رمز CRSM خارج حدود SW1/SW2.')
@@ -48,6 +48,17 @@ def applications(port,factory=None):
             raise DirectoryFailure('NEEDS_USER' if card.status=='OK' else card.status,
                                    'لم تثبت جاهزية الشريحة؛ لم نرسل قراءة EF_DIR. '+card.value)
         metadata=_crsm(s,'AT+CRSM=192,12032,0,0,0')
+        # A few AT implementations return SW=9000 but no metadata when P3=0.
+        # Only after a complete successful transaction, request the standard
+        # 15-byte legacy header once. Never retry on timeout/error/partial IO.
+        if not metadata:
+            metadata=_crsm(s,'AT+CRSM=192,12032,0,0,15')
+        if not metadata:
+            raise DirectoryFailure(
+                'UNKNOWN',
+                'استجاب المودم لأمر EF_DIR بلا بيانات وصفية حتى بعد طلب 15 بايت؛ '
+                'لم نفترض غياب تطبيق USIM أو عدم دعم الشريحة.'
+            )
         record_length=None;record_count=None
         if metadata[:1]==b'\x62':
             outer=tlvs(metadata)
@@ -56,7 +67,7 @@ def applications(port,factory=None):
                     record_length=int.from_bytes(value[2:4],'big');record_count=value[4]
         elif len(metadata)>=15 and metadata[13] in (1,3):record_length=metadata[14]
         if record_length is None or not 1<=record_length<=255:
-            raise LabError('تعذر تحديد طول سجلات EF_DIR؛ لم نفترض تطبيق USIM.')
+            raise DirectoryFailure('UNKNOWN','تعذر تحديد طول سجلات EF_DIR من وصف الملف؛ قد تكون الصيغة غير متوافقة. لم نفترض غياب USIM.')
         found={}
         for index in range(1,min(record_count or 8,8)+1):
             try:record=_crsm(s,f'AT+CRSM=178,12032,{index},4,{record_length}')
