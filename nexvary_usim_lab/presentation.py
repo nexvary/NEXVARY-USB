@@ -18,6 +18,10 @@ def outcome(reading):
     return 'غير محسوم'
 
 def explain(reading):
+    if reading.name=='SIM applications' and any(term in reading.value.lower()
+        for term in ('truncated sim tlv','malformed sim tlv','tlv غير مكتمل')):
+        return ('بيانات دليل تطبيقات الشريحة EF_DIR غير مكتملة أو بصيغة غير متوقعة؛ '
+                'لم يثبت غياب USIM أو تلف الشريحة.')
     state=reading.status
     if state in ('REJECTED','MODEM_ERROR','ERROR'):
         return ('المودم متصل، لكن أمر قراءة حالة الشريحة رُفض على المنفذ الحالي.'

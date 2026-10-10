@@ -1,3 +1,19 @@
+# NEXVARY USB Studio 0.9.1 — EF_DIR diagnostics and privacy
+
+The application distinguishes a malformed/truncated EF_DIR file descriptor from
+a truncated EF_DIR record, without guessing AIDs or claiming no USIM is present.
+Only homogeneous trailing 00 or FF record padding is accepted; malformed TLVs
+still fail closed. No PIN/PUK, authentication or SIM mutation is sent.
+
+Both the full-window results view and one-shot PNG use an Arabic-first
+explanation free of raw modem notes. Location Area and Cell ID fields from
+AT+CREG? are discarded before reports are stored or exported (including
+JSON/CSV) and also suppressed from older reports being displayed.
+
+All changes have synthetic regressions; the physical K3770 response that led
+to the truncated record is not available as sanitized raw metadata, so no
+hardware-specific cause or USIM AKA success is claimed.
+
 # NEXVARY USB Studio 0.9.0 — full-page results and complete PNG export
 
 Every completed SIM/USIM diagnostic now opens a dedicated, full-width **النتائج**

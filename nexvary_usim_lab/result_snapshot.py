@@ -19,27 +19,60 @@ _MUTED=QColor('#C3CBD3')
 _GOLD=QColor('#FFD176')
 _GREEN=QColor('#39FF14')
 
+def _friendly_detail(reading):
+    """Bounded Arabic-first summary; never paste raw URCs, notes, AIDs or IDs."""
+    from .core import registration_public
+    from .presentation import explain
+    import re
+    name, status = reading.name, reading.status
+    if status == "OK":
+        if name == "Connection":
+            return "نجح اتصال الأوامر بالمودم عبر قناة AT."
+        if name in ("Manufacturer", "Model", "Firmware"):
+            return redact(reading.value)
+        if name == "SIM status":
+            return explain(reading)
+        if name == "Registration":
+            value=registration_public(reading.value)
+            found=re.search(r'\+CREG:\s*[0-5]\s*,\s*([0-5])',value)
+            if found:
+                state=int(found.group(1))
+                return {0:'غير مسجل بالشبكة',1:'مسجل على الشبكة المحلية',
+                        2:'جاري البحث عن شبكة',3:'رفضت الشبكة التسجيل',
+                        4:'حالة التسجيل غير معروفة',5:'مسجل على شبكة تجوال'}.get(
+                         state,'حالة التسجيل غير محسومة')+'؛ معرّفات موقع الخلية محجوبة.'
+            return "اكتمل الاستعلام؛ معرّفات موقع الخلية محجوبة."
+        if name == "Signal":
+            match=re.search(r'\+CSQ:\s*(\d{1,2})\s*,\s*(\d{1,2})', reading.value)
+            if match:
+                return 'مؤشر الإشارة: '+match.group(1)+' من 31؛ مؤشر الأخطاء: '+match.group(2)+' (99 غير معروف).'
+            return 'استجاب المودم لفحص الإشارة.'
+        if name in ("ICCID","SIM EF ICCID"):
+            return 'تمت قراءة معرّف الشريحة مع حجب الرقم حفاظًا على الخصوصية؛ لا يثبت AKA.'
+        if name.endswith(" probe"):
+            return 'نجح اختبار صيغة الأمر فقط؛ لا يثبت وصول APDU أو مصادقة USIM.'
+    if name=="SIM applications" and any(x in reading.value.lower()
+          for x in ("truncated sim tlv","malformed sim tlv","tlv غير مكتمل")):
+        return 'ملف EF_DIR أعاد بنية TLV غير مكتملة؛ سبب اختلاف الطول غير محسوم، ولا يثبت غياب USIM.'
+    if name=="SIM applications" and status in ('UNKNOWN','PARTIAL'):
+        # A backend error may carry raw hexadecimal data; never echo it.
+        return 'اكتشاف تطبيقات SIM/USIM غير مكتمل؛ لم يثبت وجودها أو غيابها.'
+    if name=="SIM application" and status=="DECLARED":
+        return 'تطبيق معلن في EF_DIR؛ لم تُثبت صلاحية الوصول أو AKA.'
+    if name=="APDU SELECT MF" and reading.value=="SW=9000":
+        return 'اختيار الملف الأساسي ناجح (SW=9000)؛ لا يثبت AKA.'
+    if name.endswith(" access") and status=="SELECTED":
+        return 'نجح اختيار التطبيق؛ لم تُنفذ مصادقة AKA.'
+    return redact(explain(reading))
+
 def snapshot_rows(report):
-    """User-visible, redacted text, deliberately omitting raw modem payload."""
+    """Report-wide disclosure-safe Arabic text with no raw modem notes."""
     if report is None:
         raise LabError('افحص الجهاز قبل حفظ صورة النتائج.')
     if len(report.readings)>128:
         raise LabError('تقرير الفحص كبير جدًا؛ احفظ JSON المنقح بدل الصورة.')
-    result=[]
-    for r in report.readings:
-        title=redact(NAMES.get(r.name,r.name))
-        state=outcome(r)
-        detail=redact(explain(r))
-        # Technical response and note can explain a mismatch; mask all IDs.
-        extra=redact(r.value)
-        if extra and extra!=detail and extra not in detail:
-            detail=detail+'   |   '+extra
-        if r.note and r.name not in ('ICCID',):
-            note=redact(r.note)
-            if note not in detail and len(detail)+len(note)<750:
-                detail += '   |   '+note
-        result.append((title,state,detail))
-    return result
+    return [(redact(NAMES.get(r.name,r.name)),outcome(r),_friendly_detail(r))
+            for r in report.readings]
 
 def complete_results_image(report, width=1440):
     """Render every reading into one PNG-ready image without viewport clipping."""

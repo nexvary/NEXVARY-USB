@@ -6,7 +6,10 @@ from .device_operations import ATSession
 def tlvs(data):
     offset=0;items=[]
     while offset<len(data):
-        if data[offset]==0xff and all(b==0xff for b in data[offset:]):break
+        # EF_DIR linear-fixed records may use FF (and some implementations
+        # 00) as trailing padding. Accept only a homogeneous trailing run;
+        # never ignore an incomplete TLV followed by arbitrary bytes.
+        if data[offset] in (0xff,0x00) and all(b==data[offset] for b in data[offset:]):break
         if offset+2>len(data):raise LabError('Malformed SIM TLV.')
         tag=data[offset];offset+=1
         if tag&0x1f==0x1f:
@@ -61,10 +64,19 @@ def applications(port,factory=None):
             )
         record_length=None;record_count=None
         if metadata[:1]==b'\x62':
-            outer=tlvs(metadata)
-            for tag,value in tlvs(outer[0][1]):
-                if tag==0x82 and len(value)==5 and value[0]&7 in (2,6):
-                    record_length=int.from_bytes(value[2:4],'big');record_count=value[4]
+            try:
+                outer=tlvs(metadata)
+                if len(outer)!=1 or outer[0][0]!=0x62:
+                    raise LabError('Unexpected FCP template.')
+                for tag,value in tlvs(outer[0][1]):
+                    if tag==0x82 and len(value)==5 and value[0]&7 in (2,6):
+                        record_length=int.from_bytes(value[2:4],'big');record_count=value[4]
+            except LabError:
+                # This pinpoints the failing stage without exposing raw
+                # card payloads or inventing a record length.
+                raise DirectoryFailure('UNKNOWN',
+                    'وصف ملف EF_DIR غير مكتمل أو غير صالح بصيغة TLV؛ '
+                    'لم نبدأ قراءة سجلات غير معروفة الطول، ولا يثبت غياب USIM.') from None
         elif len(metadata)>=15 and metadata[13] in (1,3):record_length=metadata[14]
         if record_length is None or not 1<=record_length<=255:
             raise DirectoryFailure('UNKNOWN','تعذر تحديد طول سجلات EF_DIR من وصف الملف؛ قد تكون الصيغة غير متوافقة. لم نفترض غياب USIM.')
@@ -75,12 +87,17 @@ def applications(port,factory=None):
                 if index>1 and exc.sw==(0x6a,0x83):break
                 raise
             if len(record)!=record_length:raise LabError('طول سجل EF_DIR غير مطابق للبيانات الوصفية.')
-            for tag,value in tlvs(record):
-                if tag!=0x61:continue
-                for inner,aid in tlvs(value):
-                    if inner==0x4f and 7<=len(aid)<=16:
-                        name='USIM' if aid.startswith(bytes.fromhex('A0000000871002')) else 'ISIM' if aid.startswith(bytes.fromhex('A0000000871004')) else 'Other'
-                        if name!='Other':found[aid.hex().upper()]=name
+            try:
+                for tag,value in tlvs(record):
+                    if tag!=0x61:continue
+                    for inner,aid in tlvs(value):
+                        if inner==0x4f and 7<=len(aid)<=16:
+                            name='USIM' if aid.startswith(bytes.fromhex('A0000000871002')) else 'ISIM' if aid.startswith(bytes.fromhex('A0000000871004')) else 'Other'
+                            if name!='Other':found[aid.hex().upper()]=name
+            except LabError:
+                raise DirectoryFailure('UNKNOWN',
+                    f'سجل EF_DIR رقم {index} يحتوي TLV غير مكتمل أو بطول غير متوافق؛ '
+                    'لم نستنتج غياب USIM أو نجاح المصادقة.') from None
         if record_count and record_count>8:
             raise DirectoryFailure('PARTIAL','قرأنا حد السجلات الآمن؛ دليل التطبيقات غير مكتمل.')
         return [Reading('SIM application', 'DECLARED', name+' / AID '+aid,

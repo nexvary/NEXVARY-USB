@@ -110,3 +110,41 @@ class EfDirMetadataFallbackTests(unittest.TestCase):
                 return 'OK',['+CRSM: 144,0,620782054221000B01']
         self.assertEqual(bytes.fromhex('620782054221000B01'),
                          _crsm(Session(),'AT+CRSM=192,12032,0,0,0'))
+
+
+class EfDirMalformedTlvRegression(unittest.TestCase):
+    """Synthetic partial TLV from modem, not a new physical-device report."""
+    def test_padding_only_at_record_end(self):
+        from nexvary_usim_lab.sim_inspector import tlvs
+        self.assertEqual([(0x4f,b'a')],tlvs(b'\x4f\x01a\xff\xff'))
+        self.assertEqual([(0x4f,b'a')],tlvs(b'\x4f\x01a\x00\x00'))
+        with self.assertRaises(LabError):
+            tlvs(b'\x61\x10\x4f\x02a\xff\xff')
+
+    def test_truncated_fcp_is_diagnostic_unknown_not_usim_absence(self):
+        from nexvary_usim_lab.sim_inspector import DirectoryFailure
+        class Fake(DemoSerial):
+            ANSWERS={
+                'AT+CPIN?':('+CPIN: READY','OK'),
+                'AT+CRSM=192,12032,0,0,0':(
+                    '+CRSM: 144,0,"620F82054221000B01"','OK')}
+        with self.assertRaises(DirectoryFailure) as err:
+            applications('COM7',factory=Fake)
+        self.assertEqual('UNKNOWN',err.exception.status)
+        self.assertIn('وصف ملف EF_DIR',str(err.exception))
+        self.assertNotIn('Truncated SIM TLV',str(err.exception))
+
+    def test_truncated_record_is_classified_without_guessing_aid(self):
+        from nexvary_usim_lab.sim_inspector import DirectoryFailure
+        class Fake(DemoSerial):
+            ANSWERS={
+                'AT+CPIN?':('+CPIN: READY','OK'),
+                'AT+CRSM=192,12032,0,0,0':(
+                    '+CRSM: 144,0,"620782054221000B01"','OK'),
+                'AT+CRSM=178,12032,1,4,11':(
+                    '+CRSM: 144,0,"610E4F07A0000000871002"','OK')}
+        with self.assertRaises(DirectoryFailure) as err:
+            applications('COM7',factory=Fake)
+        self.assertEqual('UNKNOWN',err.exception.status)
+        self.assertIn('سجل EF_DIR رقم 1',str(err.exception))
+        self.assertNotIn('A0000000871002',str(err.exception))

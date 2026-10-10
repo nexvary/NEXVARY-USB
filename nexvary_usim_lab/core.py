@@ -59,6 +59,17 @@ def redact(value: str) -> str:
     value = _CONTROL.sub("", value)
     return re.sub(r"(?<![A-Za-z0-9])\+?\d{7,22}(?![A-Za-z0-9])", lambda m: "*" * (len(m.group()) - 4) + m.group()[-4:], value)[:512]
 
+def registration_public(value: str) -> str:
+    """Drop cellular location area and cell IDs before any report/export.
+
+    CREG may contain <n>,<stat>,<lac>,<ci>[,<AcT>] values, where lac/ci
+    locate a subscriber. Only retain the two initial registration codes.
+    """
+    match = re.search(r'\+CREG:\s*([0-5])(?:\s*,\s*([0-5]))?', value)
+    if match:
+        return '+CREG: ' + ','.join(x for x in match.groups() if x is not None)
+    return 'بيانات تسجيل الشبكة غير قابلة للتفسير؛ معرّفات الموقع محجوبة.'
+
 def ports() -> list[Port]:
     try:
         from serial.tools import list_ports
@@ -194,6 +205,9 @@ def _probe_unlocked(device: str, baudrate: int = 115200,
                     results.append(row)
                     continue
             state, value = _one_query(transport, query.command)
+            if query.name == 'Registration':
+                # Do not export LAC/CI even as short hexadecimal strings.
+                value = registration_public(value) if state=='OK' else 'بيانات تسجيل الشبكة محجوبة.'
             results.append(Reading(query.name, state, redact(value), query.note))
     finally:
         transport.close()

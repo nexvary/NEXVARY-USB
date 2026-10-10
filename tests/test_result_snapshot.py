@@ -41,3 +41,43 @@ class SnapshotTests(unittest.TestCase):
         self.assertGreater(image.height(),200)
         with self.assertRaises(LabError):
             complete_results_image(report,700)
+
+
+class PrivacyAndReadableResultsTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        os.environ.setdefault('QT_QPA_PLATFORM','offscreen')
+        cls.app=QApplication.instance() or QApplication([])
+
+    def test_report_and_image_never_export_creg_cell_location(self):
+        from nexvary_usim_lab.core import DemoSerial, probe, to_json
+        class Fake(DemoSerial):
+            ANSWERS={**DemoSerial.ANSWERS,
+                     'AT+CREG?':('+CREG: 2,1,"A10F","007E7359"','OK')}
+        report=probe('COM7',factory=Fake)
+        registration=next(r for r in report.readings if r.name=='Registration')
+        self.assertEqual('+CREG: 2,1',registration.value)
+        self.assertNotIn('A10F',to_json(report))
+        self.assertNotIn('007E7359',to_json(report))
+        # A report captured by an older version is also safe to share.
+        registration.value='+CREG: 2,1,"A10F","007E7359"'
+        snapshot=str(snapshot_rows(report))
+        self.assertNotIn('A10F',snapshot)
+        self.assertNotIn('007E7359',snapshot)
+        self.assertIn('مسجل على الشبكة',snapshot)
+
+    def test_bidi_clutter_removed_and_tlv_explained_in_arabic(self):
+        report=Report('USB','0.9.1','now','COM7',False,[
+            Reading('CGLA probe','TIMEOUT','لم يصل رد مكتمل',
+                    'Test syntax response is not proof of USIM AKA'),
+            Reading('SIM applications','UNKNOWN','Truncated SIM TLV.',
+                    'لم يثبت غياب USIM'),
+            Reading('ICCID','OK','ICCID: ************5886',
+                    'Read status; not proof of USIM AKA')])
+        cells=snapshot_rows(report)
+        assert 'Test syntax' not in str(cells)
+        assert 'Truncated SIM TLV' not in str(cells)
+        assert 'رقم' not in cells[1][2] or 'TLV' in cells[1][2]
+        self.assertIn('TLV',cells[1][2])
+        self.assertNotIn('5886',str(cells))
+        self.assertIn('غير محسوم',str(cells))
