@@ -81,3 +81,16 @@ class PrivacyAndReadableResultsTests(unittest.TestCase):
         self.assertIn('TLV',cells[1][2])
         self.assertNotIn('5886',str(cells))
         self.assertIn('غير محسوم',str(cells))
+
+class DirectReaderPresentationTests(unittest.TestCase):
+    def test_actual_mf_proof_display_and_directory_metadata_preserved(self):
+        from nexvary_usim_lab.presentation import outcome
+        from nexvary_usim_lab.result_snapshot import snapshot_rows
+        from nexvary_usim_lab.core import Report,Reading
+        proof=Reading('Direct CSIM','ACCEPTED','SELECT MF SW=9000','No AKA')
+        self.assertEqual(outcome(proof),'ناجح')
+        self.assertEqual(outcome(Reading('Direct CSIM','ACCEPTED','AT OK','Syntax only')),'غير محسوم')
+        r=Report('test','0.10.1','test','COM9',True,[proof,Reading('EF_DIR FCP','READABLE','620B82054221000B0183022F00','')])
+        rows=snapshot_rows(r)
+        self.assertEqual(rows[0][0],'اختيار MF عبر CSIM')
+        self.assertEqual(rows[1][2],'620B82054221000B0183022F00')

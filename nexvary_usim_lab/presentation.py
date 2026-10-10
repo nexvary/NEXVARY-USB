@@ -4,14 +4,24 @@ NAMES={'Connection':'الاتصال بالمودم','Manufacturer':'الشركة
        'Signal':'الإشارة','Registration':'التسجيل في الشبكة','CSIM probe':'فحص صيغة CSIM',
        'CGLA probe':'فحص صيغة CGLA','CCHO probe':'فحص صيغة CCHO','CRSM probe':'فحص صيغة CRSM',
        'SIM EF ICCID':'ملف رقم الشريحة','SIM applications':'تطبيقات الشريحة',
-       'SIM application':'تطبيق معلن','APDU SELECT MF':'اختيار الملف الأساسي','USIM AKA':'مصادقة USIM AKA'}
+       'SIM application':'تطبيق معلن','APDU SELECT MF':'اختيار الملف الأساسي','USIM AKA':'مصادقة USIM AKA',
+       'Serial port':'منفذ المودم المختار','USB VID:PID':'هوية USB الحالية',
+       'Virtual reader service':'خدمة القارئ المحلي','PC/SC enumeration':'تعداد قارئ PC/SC',
+       'PC/SC APDU transfer':'نقل APDU عبر PC/SC','Direct CSIM':'اختيار MF عبر CSIM',
+       'EF_DIR CSIM':'قراءة EF_DIR عبر CSIM','EF_DIR FCP':'وصف ملف EF_DIR',
+       'EF_DIR dimensions':'أبعاد سجلات EF_DIR','USIM directory':'عنوان تطبيق USIM',
+       'ISIM directory':'عنوان تطبيق ISIM','USIM direct access':'اختيار تطبيق USIM',
+       'ISIM direct access':'اختيار تطبيق ISIM','Direct SIM transport':'حالة نقل SIM',
+       'Virtual PC/SC':'إثبات قارئ PC/SC','ePDG / IMS / Calls':'ePDG وIMS والمكالمات'}
 SUCCESS={'OK','READABLE','SELECTED'}
 FAIL={'ERROR','REJECTED','IO_ERROR','MODEM_ERROR','MALFORMED','CARD_STATUS','NOISY'}
 
 def outcome(reading):
     if reading.name=='SIM status' and reading.status=='OK' and reading.value!='+CPIN: READY': return 'يحتاج تدخل المستخدم'
     if reading.status in SUCCESS: return 'ناجح'
-    if reading.status=='ACCEPTED':return 'ناجح' if reading.value=='SW=9000' else 'غير محسوم'
+    if reading.status=='ACCEPTED':
+        proven = reading.value=='SW=9000' or (reading.name=='Direct CSIM' and reading.value=='SELECT MF SW=9000')
+        return 'ناجح' if proven else 'غير محسوم'
     if reading.status in FAIL:return 'فشل'
     if reading.status=='NEEDS_USER':return 'يحتاج تدخل المستخدم'
     if reading.status in ('UNVERIFIED','NOT_TESTED'):return 'غير مختبر'
