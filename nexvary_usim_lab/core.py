@@ -42,9 +42,10 @@ QUERIES = (
     Query("Registration", "AT+CREG?", "Cellular registration diagnostic"),
     Query("ICCID", "AT+CCID", "Masked SIM identifier, if available"),
     Query("CSIM probe", "AT+CSIM=?", "Test syntax response is not proof of USIM AKA"),
+    # Preserve the CRSM result before unreliable CGLA/CCHO syntax probes.
+    Query("CRSM probe", "AT+CRSM=?", "Test syntax response is not proof of USIM AKA"),
     Query("CGLA probe", "AT+CGLA=?", "Test syntax response is not proof of USIM AKA"),
     Query("CCHO probe", "AT+CCHO=?", "Test syntax response is not proof of USIM AKA"),
-    Query("CRSM probe", "AT+CRSM=?", "Test syntax response is not proof of USIM AKA"),
 )
 
 # ICCID, IMSI, IMEI and similar decimal identifiers; retain only final four.

@@ -96,3 +96,12 @@ class NoisyPortTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SafeProbeOrderTests(unittest.TestCase):
+    def test_crsm_precedes_logical_channel_timeout_queries(self):
+        from nexvary_usim_lab.core import QUERIES
+        names=[q.name for q in QUERIES]
+        self.assertLess(names.index('CRSM probe'),names.index('CGLA probe'))
+        self.assertLess(names.index('CRSM probe'),names.index('CCHO probe'))
+        self.assertLess(names.index('SIM status'),names.index('CRSM probe'))

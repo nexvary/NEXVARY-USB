@@ -1,5 +1,8 @@
 # NEXVARY USB Studio 0.8.3 — EF_DIR metadata fallback
 
+The read-only CRSM syntax probe now runs before CGLA/CCHO syntax probes so a
+later logical-channel timeout cannot hide the CRSM result.
+
 A complete, successful but empty CRSM GET RESPONSE for EF_DIR (2F00) now triggers
 one fixed 15-byte legacy header read. No retry is made for timed-out, rejected,
 or incomplete commands. A second empty answer is UNKNOWN, not proof of SIM/USIM
