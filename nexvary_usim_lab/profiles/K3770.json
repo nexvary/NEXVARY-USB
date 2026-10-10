@@ -104,5 +104,14 @@
       },
       "interpretation": "not proof of absent card, unsupported command, or AKA failure"
     }
-  ]
+  ],
+  "virtual_reader": {
+    "default_framing": "tpdu",
+    "mf_select_p2": 12,
+    "real_atr": "unavailable via CSIM",
+    "electrical_reset": "unavailable; session-only reselect by explicit consent",
+    "physical_pcsc": "unverified",
+    "usim_access": "unresolved; use direct CSIM field tool",
+    "logical_channels": "inconclusive; not required by explicit CSIM AKA path"
+  }
 }

@@ -119,11 +119,13 @@ class Workstation(QMainWindow):
         self.setWindowIcon(icon('devices',GOLD));self.setLayoutDirection(Qt.RightToLeft)
         self.resize(1180,760);self.setMinimumSize(540,400);self.setStyleSheet(STYLE)
         self.inventory=None;self.devices=[];self.selected=None;self.active_port=None
+        self.virtual_reader=None;self.reader_report=None
         self.report=None;self.reports={};self.preferences=PortPreferences()
         self.busy=False;self.current_page='devices';self.history=[];self.jobs=queue.Queue();self.nav={};self.pages={}
         self.guide_stage=0;self.guide_active=False;self._guided_probe=False
         self._compose()
         self.timer=QTimer(self);self.timer.timeout.connect(self._drain);self.timer.start(40)
+        self.reader_timer=QTimer(self);self.reader_timer.timeout.connect(self._reader_status);self.reader_timer.start(500)
         if auto_refresh:QTimer.singleShot(0,self.refresh)
 
     def _compose(self):
@@ -134,7 +136,7 @@ class Workstation(QMainWindow):
         body=QHBoxLayout();self.side=QWidget();nav=QVBoxLayout(self.side);nav.setContentsMargins(0,0,8,0)
         self.back_button=button('رجوع',self.back,'back');nav.addWidget(self.back_button)
         self.stack=QStackedWidget()
-        menu=[('guide','ابدأ خطوة بخطوة','scan'),('devices','الأجهزة','devices'),('sim','معلومات الشريحة','sim'),('results','النتائج','reports'),('sms','الرسائل','sms'),
+        menu=[('guide','ابدأ خطوة بخطوة','scan'),('devices','الأجهزة','devices'),('sim','معلومات الشريحة','sim'),('reader','قارئ SIM الافتراضي','sim'),('results','النتائج','reports'),('sms','الرسائل','sms'),
               ('network','الشبكة والاتصال','network'),('esim','eSIM Manager','sim'),('reports','التقارير','reports'),('about','النظام والتوافق','about')]
         self.nav_titles={k:title for k,title,_ in menu}
         for key,title,kind in menu:
@@ -145,7 +147,7 @@ class Workstation(QMainWindow):
             scroll.setWidget(page);self.stack.addWidget(scroll);self.pages[key]=(scroll,page,v)
         nav.addStretch();self.side.setFixedWidth(195);self.side_scroll=QScrollArea();self.side_scroll.setWidgetResizable(True);self.side_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff);self.side_scroll.setWidget(self.side);self.side_scroll.setFixedWidth(211);body.addWidget(self.side_scroll);body.addWidget(self.stack,1);outer.addLayout(body,1)
         self.status_label=label('جاهز — لم تُختبر أجهزة في هذه الجلسة','muted');outer.addWidget(self.status_label)
-        for method in (self._build_guide,self._build_devices,self._build_sim,self._build_results,self._build_sms,self._build_network,self._build_esim,self._build_reports,self._build_about):method()
+        for method in (self._build_guide,self._build_devices,self._build_sim,self._build_reader,self._build_results,self._build_sms,self._build_network,self._build_esim,self._build_reports,self._build_about):method()
         self.pages['sim'][2].insertWidget(2,label('ابدأ بالفحص الشامل لمعرفة جاهزية الشريحة. قراءة EF-ICCID وفحص التطبيقات اختياريان للمستخدم المتقدم؛ لا يلزم تشغيلهما لقراءة الرسائل.','gold'))
         self.pages['sim'][2].insertWidget(3,button('متابعة مراحل الاستخدام',self._guide_return,'back'))
         self.pages['sms'][2].insertWidget(2,label('1. اضغط قراءة الوارد. 2. للإرسال أدخل الرقم الدولي والنص. 3. راجع الرقم والرسوم في الموافقة. لا تُرسل أي رسالة تلقائيًا.','gold'))
@@ -312,8 +314,11 @@ class Workstation(QMainWindow):
     def _device_action(self,device,fn):
         if self.busy:return
         changed=self.selected is None or self.selected.key!=device.key
+        if changed and self.virtual_reader and self.virtual_reader.thread and self.virtual_reader.thread.is_alive():
+            QMessageBox.information(self,'Virtual Reader','أوقف القارئ الحالي قبل اختيار فلاشة أخرى.');return
         self.selected=device
         if changed:
+            self.reader_report=None
             self.active_port=None;self.report=self.reports.get(device.key)
             self._populate_readings(self.report.readings if self.report else [])
             rows(self.sms_table,[]);rows(self.network_table,[])
@@ -326,6 +331,76 @@ class Workstation(QMainWindow):
         self._actions(v,[('فحص شامل',self.run_probe,'scan',True),('مقارنة منافذ المودم',self.compare_modem_ports,'details',False),('قراءة EF-ICCID',self.check_ef,'sim',False),('اختبار SELECT MF',self.check_apdu,'sim',False),('تطبيقات SIM / USIM',self.check_applications,'sim',False)])
         self.card_label=label('الشريحة لم تُفحص','gold');v.addWidget(self.card_label)
         self.sim_table=table(['الفحص','الحالة','النتيجة والتفسير']);v.addWidget(self.sim_table);v.addStretch()
+
+    def _build_reader(self):
+        v=self._heading('reader','قارئ SIM الافتراضي','Direct CSIM + Virtual PC/SC • تشغيل محدود بالقراءة وبموافقة محلية لمدة خمس دقائق.')
+        self.reader_lang=QComboBox();self.reader_lang.addItems(['العربية','English']);v.addWidget(self.reader_lang)
+        self.reader_status=label('لم يُشغّل القارئ • PC/SC وAKA غير مختبرين','gold');v.addWidget(self.reader_status)
+        self.reader_table=table(['المرحلة / Stage','الحالة / State','الدليل / Evidence']);self.reader_table.setWordWrap(False);self.reader_table.setMinimumHeight(290);self.reader_table.setMaximumHeight(290);self.reader_table.setColumnWidth(0,185);self.reader_table.setColumnWidth(1,270);v.addWidget(self.reader_table)
+        self.reader_limited=QCheckBox('أوافق على ATR افتراضي وإعادة اختيار جلسة فقط؛ ليست إعادة ضبط كهربائية للشريحة.')
+        self.reader_limited.setMinimumHeight(40);v.addWidget(self.reader_limited)
+        port_line=QHBoxLayout();port_line.addWidget(label('منفذ vpcd المحلي / Local vpcd port'))
+        self.reader_port=QSpinBox();self.reader_port.setRange(1024,65535);self.reader_port.setValue(35963);port_line.addWidget(self.reader_port);v.addLayout(port_line)
+        self._actions(v,[('تشخيص شامل واحد',self.reader_diagnose,'scan',True),('تشغيل القارئ الافتراضي',self.reader_start,'sim',False),
+                         ('إيقاف القارئ',self.reader_stop,'back',False),('فحص ظهور PC/SC',self.read_pcsc,'details',False),
+                         ('دليل الاستخدام',self.reader_help,'about',False)])
+        self.reader_hint=label('Linux: ثبّت vpcd ثم اضبط DEVICENAME إلى 127.0.0.1:35963. Windows يحتاج تعريف قارئ افتراضي مناسبًا مثبتًا؛ لا تثبيت أو توقيع تلقائي. نجاح الانتظار لا يثبت اكتشاف PC/SC أو وجود USIM.','muted');v.addWidget(self.reader_hint);v.addStretch()
+        def language(index):
+            self.pages['reader'][1].setLayoutDirection(Qt.LeftToRight if index else Qt.RightToLeft)
+            self.reader_limited.setText('I accept an emulated transport ATR and session reselect, without electrical UICC reset.' if index else 'أوافق على ATR افتراضي وإعادة اختيار جلسة فقط؛ ليست إعادة ضبط كهربائية للشريحة.')
+            self.reader_hint.setText('Linux: install vpcd and set DEVICENAME 127.0.0.1:35963. Windows requires a separately installed virtual reader driver. Waiting is not proof of PC/SC enumeration or USIM.' if index else 'Linux: ثبّت vpcd ثم اضبط DEVICENAME إلى 127.0.0.1:35963. Windows يحتاج تعريف قارئ افتراضي مناسبًا مثبتًا. الانتظار لا يثبت اكتشاف PC/SC أو وجود USIM.')
+        self.reader_lang.currentIndexChanged.connect(language)
+        self._reader_status()
+
+    def _reader_status(self):
+        if not hasattr(self,'reader_status'):return
+        state=self.virtual_reader.state if self.virtual_reader else 'STOPPED'
+        title={'STOPPED':'متوقف / Stopped','WAITING_PCSC':'بانتظار PC/SC / Waiting',
+               'CONNECTED_READ_ONLY':'متصل للقراءة فقط / Connected read-only','TIMEOUT':'توقف بسبب مهلة / Timeout',
+               'UNAVAILABLE':'غير متاح؛ افحص التشخيص / Unavailable','EXPIRED':'انتهت الموافقة / Consent expired',
+               'STOPPING':'جارٍ إغلاق المنفذ / Stopping'}.get(state,state)
+        self.reader_status.setText(title+' • AKA / ePDG / IMS / Calls: غير مثبتة / Unverified')
+        rr=self.reader_report.readings if self.reader_report else []
+        def stage(name, default='غير مختبر / Unverified'):
+            row=next((r for r in rr if r.name==name),None)
+            return row.status if row else default
+        connected=state=='CONNECTED_READ_ONLY'
+        rows(self.reader_table,[('Modem / SIM', stage('SIM status','READY' if connected else 'غير مختبر / Unverified'),'يُثبتان بالتشخيص الحالي'),
+            ('Serial',self.virtual_reader.port if self.virtual_reader else (self.active_port or '—'),'لا منفذ ثابت'),
+            ('AT+CSIM / APDU',stage('Direct CSIM','SELECT_MF_9000' if connected else 'غير مختبر / Unverified'),'AT OK وحده لا يكفي'),
+            ('USIM',stage('USIM direct access'),'EF_DIR ثم SELECT ADF'),
+            ('Virtual reader',title,'خدمة loopback فعلية عند التشغيل'),
+            ('PC/SC','غير مثبت / Unverified','فحص ظهور القارئ ثم SELECT من برنامج خارجي'),
+            ('WiFi-Call','غير مختبر / Unverified','mTLS + موافقة منفصلة؛ لا مصادقة عبر PC/SC')])
+
+    def reader_diagnose(self):
+        if not self._confirm('تشخيص القارئ','فحص قراءة EF_DIR وSELECT ADF عبر CSIM فقط، دون PIN أو مصادقة أو تعديل الشريحة؟'):return
+        from .reader_diagnostics import field_report
+        def done(report):
+            self.reader_report=report;self.report=report
+            if self.selected:self.reports[self.selected.key]=report
+            self._populate_readings(report.readings);self._reader_status();self.show('results')
+        self._with_port('تشخيص Direct SIM',lambda p:field_report(p,True),done,assess_sim=True)
+
+    def reader_start(self):
+        if self.virtual_reader and self.virtual_reader.thread and self.virtual_reader.thread.is_alive():
+            QMessageBox.information(self,'Virtual Reader','القارئ يعمل بالفعل.');return
+        if not self.reader_limited.isChecked():
+            QMessageBox.information(self,'موافقة مطلوبة','راجع حدود ATR وإعادة تهيئة الجلسة ثم ضع علامة الموافقة.');return
+        if not self._confirm('تشغيل قارئ محلي','السماح للتطبيقات المحلية بقراءة دليل التطبيقات عبر قارئ افتراضي لمدة خمس دقائق؟ لا تتضمن هذه الموافقة AKA.'):return
+        from .virtual_reader import VirtualReaderService
+        vpcd_port=self.reader_port.value()
+        def work(port):
+            reader=VirtualReaderService(port,vpcd_port,True,True,True);reader.start();return reader
+        def done(reader):self.virtual_reader=reader;self._reader_status()
+        self._with_port('تشغيل Virtual SIM Reader',work,done,assess_sim=True)
+
+    def reader_stop(self):
+        if self.virtual_reader:
+            self._job('إيقاف Virtual Reader',self.virtual_reader.stop,lambda _:self._reader_status())
+
+    def reader_help(self):
+        QMessageBox.information(self,'Virtual SIM Reader','1. اختر الفلاشة من الأجهزة.\n2. نفّذ التشخيص الشامل واحفظ PNG أو JSON.\n3. ثبّت vpcd على Linux واضبط وضع الاتصال العكسي على localhost.\n4. وافق على حدود ATR والجلسة ثم شغّل القارئ.\n5. افحص ظهور PC/SC واختبر SELECT من تطبيق خارجي.\nWindows: تعريف القارئ منفصل وغير مضمّن. المصادقة متاحة فقط عبر جسر mTLS بموافقة مستقلة. راجع docs/VIRTUAL-SIM-READER-AR.md.')
 
     def _build_results(self):
         v=self.pages['results'][2]
@@ -506,6 +581,7 @@ class Workstation(QMainWindow):
         try:callback(result);self.status_label.setText('اكتمل: '+title)
         except Exception:self.status_label.setText('تعذر عرض النتيجة؛ لا تُعتبر نجاحًا.')
     def closeEvent(self,event):
+        if self.virtual_reader:self.virtual_reader.stop()
         self.clear_activation()
         if self.busy:
             QMessageBox.information(self,'عملية جارية','انتظر انتهاء العملية قبل إغلاق البرنامج.');event.ignore()

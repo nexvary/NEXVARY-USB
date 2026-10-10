@@ -1,25 +1,17 @@
-NEXVARY USB Studio 0.8.2
+NEXVARY USB Studio 0.10.0
 
-USB modem grouping, user-initiated AT and SIM diagnostics, network status,
-SMS (including received UCS2/GSM7 PDU), consented OS-managed data connection,
-and redacted reports. Full-color vector icons and Arabic RTL desktop.
+New: Virtual SIM Reader, direct modem CSIM/EF_DIR/USIM discovery, and a real
+loopback vpcd protocol service. No physical OMNIKEY reader is required.
+A separate compatible Windows virtual reader driver is required for Windows
+PC/SC enumeration; it is not installed by this setup. Direct modem access
+works independently. ATR/session reset are explicitly limited emulation.
+Read-only PC/SC does not provide AUTH/PIN/writes. AKA uses a separate scoped
+mTLS bridge with short-lived local consent. Hardware/carrier success remains
+unverified until tested. No firmware flashing or operator bypass.
 
-New: WiFi-Call evidence export from Reports, separating AT/SIM/APDU from
-AKA, ePDG, IMS and voice/call verification without exposing SIM identifiers.
-The export does not authorize calls or perform authentication.
-
-Preserved: unified framed AT receiver, capability-aware port selection, card-ready
-checks, evidence-based K3770 CRSM ICCID reading and Arabic result explanations.
-Incomplete replies stop that session; no SMS/authentication automatic retries.
-
-Offline integration with NEXVARY SIM Manager 0.922.0 for LPA activation
-QR handoff and imported phone recycling CSV reports. Activation credentials
-are not persisted or sent to a server. eSIM provisioning requires an
-authorized LPA on the phone; this desktop does not download profiles.
-
-Private consent-gated AKA adapter and WiFi-Call contract are implemented,
-but live AKA and carrier calls remain unverified. Hardware support varies.
-No Ki/OPc extraction, firmware flashing, automatic driver installation,
-SIM writes or file associations.
-
+Preserved: full separate results page; all results in one PNG; JSON/CSV,
+Arabic RTL, full-color vector icons, modem grouping, AT diagnostics, SIM
+status, ICCID, SMS/PDU, network status, consented OS-managed data connection,
+eSIM Manager LPA QR handoff and recycling CSV import, privacy-safe reports.
+No text file associations or automatic driver/network changes.
 Upgrades and uninstall preserve user settings and reports.

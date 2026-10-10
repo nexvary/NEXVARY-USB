@@ -9,14 +9,44 @@ from .discovery import detect, to_diagnostic_json
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="NEXVARY USB-USIM Lab — read-only local diagnostics")
-    parser.add_argument("action", nargs="?", choices=("gui", "ports", "pcsc", "probe", "demo", "select-mf", "catalog", "diagnose", "bridge", "capabilities"), default="gui")
+    parser.add_argument("action", nargs="?", choices=("gui", "ports", "pcsc", "probe", "demo", "select-mf", "catalog", "diagnose", "bridge", "capabilities", "reader-diagnose", "virtual-reader"), default="gui")
     parser.add_argument("--port", help="Explicit modem serial port, for probe only")
     parser.add_argument("--baudrate", type=int, default=115200)
     parser.add_argument("--export", help="Optional .json or .csv redacted report")
     parser.add_argument("--consent", action="store_true", help="Explicitly consent to the fixed on-card SELECT MF test")
     parser.add_argument("--config", help="Private bridge session configuration")
+    parser.add_argument("--vpcd-port", type=int, default=35963)
+    parser.add_argument("--allow-emulated-atr", action="store_true")
+    parser.add_argument("--allow-session-reset", action="store_true")
     args = parser.parse_args(argv)
     try:
+        if args.action in ("reader-diagnose", "virtual-reader"):
+            if not args.consent: parser.error("local reader requires --consent")
+            port = args.port
+            if port is None:
+                from .grouping import group_devices
+                from .port_discovery import discover_at
+                devices = [d for d in group_devices(detect()) if d.ports]
+                if len(devices) != 1: parser.error("select a device in the GUI or supply --port when multiple/zero modems exist")
+                port = discover_at(devices[0], assess_sim=True)[0]
+            if args.action == "reader-diagnose":
+                from .reader_diagnostics import field_report
+                report = field_report(port, True)
+                raw = to_csv(report) if args.export and Path(args.export).suffix.lower() == '.csv' else to_json(report)
+                if args.export:
+                    if Path(args.export).suffix.lower() not in ('.json','.csv'):parser.error("field report export must be JSON or CSV")
+                    with Path(args.export).open('x',encoding='utf-8') as handle:handle.write(raw)
+                    print("Redacted field report saved:",args.export)
+                else:print(raw)
+                return 0
+            from .virtual_reader import VirtualReaderService
+            service = VirtualReaderService(port,args.vpcd_port,True,args.allow_emulated_atr,args.allow_session_reset)
+            service.start()
+            print("Read-only local virtual card waiting for vpcd in reversed mode. ATR/reset are emulated. No AKA. Ctrl+C stops.")
+            try:service.thread.join()
+            except KeyboardInterrupt:pass
+            finally:service.stop()
+            return 0
         if args.action == "bridge":
             if not args.config or not args.consent: parser.error("bridge requires --config and --consent")
             from .bridge_session import serve

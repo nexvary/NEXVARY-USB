@@ -22,3 +22,5 @@ assets/*.bmp
 previous-installer/
 
 /test-evidence/
+
+/virtual-pcsc-evidence.json

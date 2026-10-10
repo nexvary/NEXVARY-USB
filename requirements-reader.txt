@@ -1,0 +1,2 @@
+# Headless reader needs no Qt runtime or physical PC/SC hardware.
+pyserial==3.5

@@ -1,3 +1,21 @@
+# NEXVARY USB Studio 0.10.0 — Virtual SIM Reader
+
+Direct CSIM/TPDU transport, bounded EF_DIR discovery and ADF selection,
+read-only loopback Virtual PC/SC using the real vpcd protocol (Linux reversed
+IFD mode), plus an explicitly selected CSIM AKA backend behind the existing
+private mTLS broker. No physical OMNIKEY dependency.
+
+Virtual ATR and session reselect are opt-in emulation, not hardware ATR/reset.
+PC/SC scope is directory-read only; AUTH/PIN/writes are not exposed. Windows
+PC/SC requires a separate compatible virtual reader driver. Real K3770 AKA,
+ePDG, IMS and calls are not claimed. The separate results page and full PNG,
+SMS, network and eSIM functions are preserved.
+
+See [Arabic guide](docs/VIRTUAL-SIM-READER-AR.md),
+[compatibility](docs/VIRTUAL-SIM-COMPATIBILITY.md),
+[delivery limits](docs/RELEASE-0.10.0-AR.md), and
+[source/license review](docs/VIRTUAL-SIM-SOURCES.md).
+
 # NEXVARY USB Studio 0.9.1 — EF_DIR diagnostics and privacy
 
 The application distinguishes a malformed/truncated EF_DIR file descriptor from

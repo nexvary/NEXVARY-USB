@@ -2,7 +2,7 @@
 import json,os,stat,time,re,subprocess
 from pathlib import Path
 from .core import LabError
-from .usim_backend import Authorization,ModemUsimBackend
+from .usim_backend import Authorization,ModemUsimBackend,CsimUsimBackend
 from .secure_bridge import PrivateUsimBridge
 
 def _private(path):
@@ -28,13 +28,16 @@ def serve(path,consent=False):
     if path.stat().st_size>8192:raise LabError('Invalid bridge configuration.')
     config=json.loads(path.read_text(encoding='utf-8'))
     fields={'serial_port','device_key','aid','token','server_cert','server_key','client_ca','client_pin','port'}
-    if not isinstance(config,dict) or set(config)!=fields:raise LabError('Invalid bridge configuration.')
+    if not isinstance(config,dict) or set(config) not in (fields, fields | {'transport'}):raise LabError('Invalid bridge configuration.')
     if type(config['port']) is not int or not 1<=config['port']<=65535 or not isinstance(config['device_key'],str) or not 1<=len(config['device_key'])<=128:
         raise LabError('Invalid scoped bridge device/port.')
     if not isinstance(config['token'],str) or not re.fullmatch('[A-Za-z0-9_-]{32,128}',config['token']):raise LabError('Invalid scoped token.')
     _private(config['server_key'])
     auth=Authorization(config['device_key'],config['token'],time.monotonic()+300)
-    backend=ModemUsimBackend(config['serial_port'],config['device_key'],config['aid'],auth,config['token'],consent=True)
+    transport=config.get('transport','logical')
+    if transport not in ('logical','csim'):raise LabError('Unknown explicitly selected SIM transport.')
+    backend_class=CsimUsimBackend if transport=='csim' else ModemUsimBackend
+    backend=backend_class(config['serial_port'],config['device_key'],config['aid'],auth,config['token'],consent=True)
     bridge=PrivateUsimBridge(backend,config['server_cert'],config['server_key'],config['client_ca'],config['client_pin'],config['port'])
     print('Private loopback bridge active for at most 300 seconds. Ctrl+C revokes consent.')
     try:bridge.serve_forever()

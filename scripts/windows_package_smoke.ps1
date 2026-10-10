@@ -37,7 +37,7 @@ if ($p.ExitCode -ne 0 -or !(Test-Path $env:NEXVARY_PACKAGE_SMOKE)) {
 }
 if ((Get-TextAssociations) -ne $associations) { throw 'Text file associations changed' }
 $marker = Get-Content -Raw $env:NEXVARY_PACKAGE_SMOKE | ConvertFrom-Json
-if ($marker.version -ne $version -or $marker.pages.Count -ne 9) { throw 'Packaged version/page marker invalid' }
+if ($marker.version -ne $version -or $marker.pages.Count -ne 10) { throw 'Packaged version/page marker invalid' }
 if ($marker.esim_contract -ne 'synthetic QR and CSV passed') { throw 'Packaged eSIM contract failed' }
 # Upgrade using identical AppId, then uninstall; no outside directory is removed.
 $p = Start-Process -FilePath $installer -ArgumentList $args -Wait -PassThru

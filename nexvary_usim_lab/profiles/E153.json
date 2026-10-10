@@ -17,5 +17,6 @@
     "source": "physical label photograph",
     "date": "2026-10-08",
     "classification": "reported physical evidence; not re-tested here"
-  }
+  },
+  "owner_device_identity_note": "Not a second established owner modem. The current verified owner device is K3770. E153 profile is a separate unverified compatibility candidate."
 }

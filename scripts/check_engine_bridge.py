@@ -14,3 +14,18 @@ try:
     assert backend.calls==1
     print('Cross-project TLS PASS; independent engine client, synthetic AKA. Hardware and calls not verified.')
 finally:bridge.stop();thread.join(2)
+
+# Exercise the *new CSIM backend* behind real mTLS with independent WiFi client.
+from test_csim_aka import CsimAkaTests
+fixture=CsimAkaTests();backend=fixture.backend()
+bridge=PrivateUsimBridge(backend,str(CERTS/'server.pem'),str(CERTS/'server-key.pem'),str(CERTS/'ca.pem'),pin('client'))
+thread=threading.Thread(target=bridge.serve_forever,daemon=True);thread.start()
+try:
+    client=UsbAkaBackend(port=bridge.port,device_key='device',token='T'*40,server_ca=str(CERTS/'ca.pem'),client_cert=str(CERTS/'client.pem'),client_key=str(CERTS/'client-key.pem'),server_pin=pin('server'))
+    assert client.authenticate('11'*16,'22'*16)==('72657370','63'*16,'69'*16)
+    try:client.authenticate('11'*16,'22'*16)
+    except Exception:pass
+    else:raise AssertionError('Duplicate challenge accepted')
+    assert sum(b'00880081' in x for x in fixture.fake.commands)==1
+    print('CSIM + real mTLS + WiFi engine PASS; synthetic card/AKA, no carrier proof.')
+finally:bridge.stop();thread.join(2)

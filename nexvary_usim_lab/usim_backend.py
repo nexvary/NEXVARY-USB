@@ -91,3 +91,36 @@ def parse_aka(data):
             if len(data)==n+45 and data[n+36]!=8:raise LabError('Invalid optional AKA field.')
             return data[2:a].hex().upper(),data[a+1:b].hex().upper(),data[b+1:b+17].hex().upper(),None
     raise LabError('Invalid AKA result structure.')
+
+class CsimUsimBackend(ModemUsimBackend):
+    """Explicit basic-channel AKA path, independent of CCHO/CGLA support.
+
+    Uses a live discovered AID in the same exclusive serial lease. Never falls
+    back automatically from a timed-out logical-channel authentication. This
+    is not a declaration of hardware/carrier compatibility.
+    """
+    def authenticate_ami(self, rand, autn):
+        import hashlib
+        from .virtual_sim import VirtualCardEngine
+        self._authorize()
+        if not all(isinstance(x,str) and re.fullmatch(r'[0-9A-Fa-f]{32}',x) for x in (rand,autn)):
+            raise LabError('RAND and AUTN must each contain 16 bytes.')
+        challenge = hashlib.sha256(bytes.fromhex(rand+autn)).digest()
+        with self._lock:
+            self._authorize()
+            if challenge in self._used or self._count >= 32: raise LabError('Duplicate challenge or session limit.')
+            self._used.add(challenge); self._count += 1
+            with ATSession(self._port,factory=self._factory) as session:
+                engine = VirtualCardEngine(session)
+                engine.initialize()
+                aids = engine.discover_applications()
+                aid = bytes.fromhex(self._aid)
+                if aid not in aids: raise LabError('Authorized USIM AID not discovered on current card.')
+                engine.select_aid(aid).require_success()
+                self._authorize()
+                # Internal fixed operation; never exposed through Virtual PC/SC.
+                apdu = bytes.fromhex('008800812210'+rand+'10'+autn+'00')
+                reply = engine.transport.exchange(apdu)
+                reply.require_success()
+                self._authorize()
+                return parse_aka(reply.data)

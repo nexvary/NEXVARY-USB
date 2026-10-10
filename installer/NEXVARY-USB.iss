@@ -1,5 +1,5 @@
 #define MyAppName "NEXVARY USB Studio"
-#define MyAppVersion "0.9.1"
+#define MyAppVersion "0.10.0"
 #define MyAppPublisher "NEXVARY"
 #define MyAppExeName "NEXVARY-USB-Studio.exe"
 [Setup]
@@ -28,12 +28,13 @@ WizardImageFile=assets\wizard-large.bmp
 WizardSmallImageFile=assets\wizard-small.bmp
 AppSupportURL=https://github.com/nexvary/NEXVARY-USB/issues
 AppUpdatesURL=https://github.com/nexvary/NEXVARY-USB/releases
-VersionInfoVersion=0.9.1.0
+VersionInfoVersion=0.10.0.0
 VersionInfoCompany=NEXVARY
 VersionInfoDescription=NEXVARY USB modem and USIM management workstation
 [Files]
 Source: "dist\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "licenses\*"; DestDir: "{app}\licenses"; Flags: ignoreversion recursesubdirs
+Source: "docs\VIRTUAL-SIM-READER-AR.md"; DestDir: "{app}\docs"; Flags: ignoreversion
 [Icons]
 Name: "{autoprograms}\NEXVARY USB Studio"; Filename: "{app}\{#MyAppExeName}"
 Name: "{autodesktop}\NEXVARY USB Studio"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
