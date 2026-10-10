@@ -1,0 +1,40 @@
+name: Windows virtual reader driver build
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - scripts/prepare_windows_vpcd.py
+      - scripts/patch_windows_driver_build.py
+      - scripts/build_windows_driver.ps1
+      - .github/workflows/windows-driver.yml
+permissions:
+  contents: read
+jobs:
+  build-driver:
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Prepare reviewed isolated source
+        run: |
+          python scripts/prepare_windows_vpcd.py windows-driver-source
+          python scripts/patch_windows_driver_build.py windows-driver-source
+      - name: Build x64 UMDF DLL and unsigned catalog
+        shell: pwsh
+        run: ./scripts/build_windows_driver.ps1
+      - name: Corresponding GPL source archive
+        if: success()
+        shell: pwsh
+        run: |
+          git -C windows-driver-source diff --binary --output=../driver-output/NEXVARY-PATCH.diff
+          tar -czf driver-output/vsmartcard-corresponding-source.tar.gz --exclude=.git windows-driver-source
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: NEXVARY-Windows-Virtual-Reader-x64-Development
+          path: driver-output/
+          if-no-files-found: error
