@@ -22,7 +22,7 @@ from .ui_results import ui_reading
 from .port_discovery import discover_at, PortPreferences
 from .esim_integration import APK_IDENTITY, IntegrationError, parse_activation, qr_png, read_qr, read_recycling_csv
 from . import __version__
-from .presentation import NAMES, outcome, explain
+from .presentation import NAMES, outcome, explain, report_notice
 from .result_snapshot import snapshot_rows, complete_results_image
 from .usage_guide import STEPS, GOALS, connection_ok, explain_report
 
@@ -608,7 +608,7 @@ class Workstation(QMainWindow):
             count=len(self.report.readings)
             self.results_summary.setText(
                 f'عدد الفحوص: {count}  •  المنفذ: {self.report.device}  •  '
-                +('محاكاة — غير ميدانية' if self.report.simulated else 'فحص جهاز فعلي؛ المصادقة والمكالمات تحقق مستقل')
+                +report_notice(self.report)
             )
         else:self.results_summary.setText('لا يوجد فحص حتى الآن.')
         for i in range(self.results_table.rowCount()):

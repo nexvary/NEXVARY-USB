@@ -8,7 +8,7 @@ from __future__ import annotations
 from PySide6.QtCore import Qt, QRect
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QImage, QPainter
 from .core import LabError, redact
-from .presentation import NAMES, outcome, explain
+from .presentation import NAMES, outcome, explain, report_notice
 
 _BG=QColor('#0C1319')
 _PANEL=QColor('#13212D')
@@ -118,8 +118,7 @@ def complete_results_image(report, width=1440):
         desc='الجهاز / المنفذ: '+redact(report.device)+'     |     الإصدار: '+redact(report.version)
         painter.drawText(QRect(x,74,inner,30),Qt.AlignRight|Qt.AlignVCenter,desc)
         painter.setPen(_GOLD)
-        notice=('محاكاة — ليست نتيجة جهاز فعلي' if report.simulated
-                else 'نتائج محلية من جهاز فعلي — لا تثبت AKA أو IMS أو المكالمات')
+        notice=report_notice(report)
         painter.drawText(QRect(x,111,inner,37),Qt.AlignRight|Qt.AlignVCenter,notice)
         y=header_h
         painter.fillRect(QRect(x,y,inner,column_h),_PANEL)

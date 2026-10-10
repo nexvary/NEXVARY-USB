@@ -3,7 +3,7 @@ import unittest
 from unittest.mock import patch
 from nexvary_usim_lab.pcsc_process import external_report, from_result
 from nexvary_usim_lab.core import LabError, Reading
-from nexvary_usim_lab.presentation import explain
+from nexvary_usim_lab.presentation import explain, report_notice
 
 
 class ExternalPcscTests(unittest.TestCase):
@@ -14,6 +14,7 @@ class ExternalPcscTests(unittest.TestCase):
         self.assertEqual(rows['PC/SC enumeration'].status,'OK')
         self.assertEqual(rows['PC/SC SELECT USIM'].status,'UNVERIFIED')
         self.assertEqual(rows['USIM AKA'].status,'UNVERIFIED')
+        self.assertIn('مصدر البطاقة',report_notice(report))
 
     def test_client_deadline_does_not_retry(self):
         with patch('nexvary_usim_lab.pcsc_process.subprocess.run',

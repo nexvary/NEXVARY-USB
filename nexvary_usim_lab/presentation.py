@@ -16,6 +16,12 @@ NAMES={'PC/SC connection':'اتصال بطاقة PC/SC','PC/SC SELECT MF':'اخ�
 SUCCESS={'OK','READABLE','SELECTED'}
 FAIL={'ERROR','REJECTED','IO_ERROR','MODEM_ERROR','MALFORMED','CARD_STATUS','NOISY'}
 
+def report_notice(report):
+    if report.simulated:return 'محاكاة — ليست نتيجة جهاز فعلي'
+    if report.device=='Independent PC/SC client':
+        return 'اختبار PC/SC محلي مستقل — مصدر البطاقة الفعلية يحتاج تقرير المضيف؛ AKA والمكالمات غير مثبتة'
+    return 'نتائج محلية من جهاز فعلي — لا تثبت AKA أو IMS أو المكالمات'
+
 def outcome(reading):
     stages={'OBSERVED':'مُلاحظ','DECLARED':'مُعلن','STOPPED':'متوقف',
             'WAITING_PCSC':'بانتظار اتصال','CONNECTED_READ_ONLY':'متصل للقراءة',

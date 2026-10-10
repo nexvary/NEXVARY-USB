@@ -19,6 +19,7 @@ def external_report(timeout=30):
             completed = subprocess.run(command, stdin=subprocess.DEVNULL,
                                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                                        timeout=timeout, check=False,
+                                       cwd=None if getattr(sys, 'frozen', False) else str(Path(__file__).resolve().parents[1]),
                                        creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
         except subprocess.TimeoutExpired:
             # subprocess.run kills and waits for the child. Never retry APDUs.
@@ -39,7 +40,7 @@ def from_result(result):
     if result.get('schema') != 'nexvary.field-pcsc.v1':
         raise LabError('External PC/SC report schema invalid.')
     rows = [Reading('PC/SC enumeration', 'OK' if result.get('enumeration') else 'UNVERIFIED',
-                    str(result.get('reader_count', 0)) + ' readers', ''),
+                    str(result['reader_count']) + ' readers' if 'reader_count' in result else 'Reader count not established', ''),
             Reading('PC/SC connection', 'OK' if result.get('connected') else 'UNVERIFIED',
                     result.get('runtime', 'Native PC/SC'), '')]
     for key, name in [('select_mf', 'PC/SC SELECT MF'), ('ef_dir_read', 'PC/SC EF_DIR'),
