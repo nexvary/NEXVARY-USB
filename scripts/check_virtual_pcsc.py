@@ -74,9 +74,15 @@ def main():
             assert transmit(bytes.fromhex('00B201040B'))==RECORD+b'\x90\x00'
             check(lib.SCardDisconnect(handle,0));handle=ULong()
             # Stop/removal is visible to the external PC/SC consumer.
-            service.stop();time.sleep(.3)
-            error=lib.SCardConnect(context,reader.encode(),2,1,ctypes.byref(handle),ctypes.byref(active))
-            assert error!=0,'Card removal failed'
+            service.stop()
+            removal_deadline=time.monotonic()+15
+            while time.monotonic()<removal_deadline:
+                error=lib.SCardConnect(context,reader.encode(),2,1,ctypes.byref(handle),ctypes.byref(active))
+                if error:break
+                check(lib.SCardDisconnect(handle,0));handle=ULong()
+                time.sleep(.1)
+            assert error & 0xffffffff in (0x8010000c,0x80100017,0x80100069), 'Card removal not observed: '+hex(error & 0xffffffff)
+            handle=ULong()
             report={'pcsc_runtime':'actual pcsc-lite + vsmartcard-vpcd + external ctypes client','modem':'synthetic injected serial',
                     'reader_enumerated':True,'select_mf':True,'ef_dir_fcp':True,'read_record':True,'card_removal':True,
                     'atr':'explicit emulated transport ATR 3B00','reset':'session reselect only','hardware_verified':False,'aka_verified':False,'calls_verified':False}
