@@ -89,6 +89,9 @@ class DirectReaderPresentationTests(unittest.TestCase):
         from nexvary_usim_lab.core import Report,Reading
         proof=Reading('Direct CSIM','ACCEPTED','SELECT MF SW=9000','No AKA')
         self.assertEqual(outcome(proof),'ناجح')
+        self.assertEqual(outcome(Reading('Virtual reader service','STOPPED','','')),'متوقف')
+        self.assertEqual(outcome(Reading('USB VID:PID','OBSERVED','12D1:14C9','')),'مُلاحظ')
+        self.assertEqual(outcome(Reading('USIM directory','DECLARED','A0000000871002','')),'مُعلن')
         self.assertEqual(outcome(Reading('Direct CSIM','ACCEPTED','AT OK','Syntax only')),'غير محسوم')
         r=Report('test','0.10.1','test','COM9',True,[proof,Reading('EF_DIR FCP','READABLE','620B82054221000B0183022F00','')])
         rows=snapshot_rows(r)

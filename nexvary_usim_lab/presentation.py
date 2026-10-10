@@ -17,6 +17,10 @@ SUCCESS={'OK','READABLE','SELECTED'}
 FAIL={'ERROR','REJECTED','IO_ERROR','MODEM_ERROR','MALFORMED','CARD_STATUS','NOISY'}
 
 def outcome(reading):
+    stages={'OBSERVED':'مُلاحظ','DECLARED':'مُعلن','STOPPED':'متوقف',
+            'WAITING_PCSC':'بانتظار اتصال','CONNECTED_READ_ONLY':'متصل للقراءة',
+            'EXPIRED':'انتهت الموافقة','STOPPING':'جارٍ الإيقاف'}
+    if reading.status in stages:return stages[reading.status]
     if reading.name=='SIM status' and reading.status=='OK' and reading.value!='+CPIN: READY': return 'يحتاج تدخل المستخدم'
     if reading.status in SUCCESS: return 'ناجح'
     if reading.status=='ACCEPTED':
