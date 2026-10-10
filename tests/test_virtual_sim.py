@@ -60,7 +60,7 @@ class TransportTests(unittest.TestCase):
         with self.assertRaises(TransportFailure):t.exchange(bytes.fromhex('00C0000001'))
         self.assertTrue(t.failed)
     def test_virtual_atr_opt_in_and_actual_get_response(self):
-        s=ScriptSession([('OK',['+CPIN: READY']),'9000',('OK',['+CPIN: READY']),FCP.hex()+'9000',('OK',['+CPIN: READY']),'9000',('OK',['+CPIN: READY'])])
+        s=ScriptSession([('OK',['+CPIN: READY']),'9000',('OK',['+CPIN: READY']),FCP.hex()+'9000',('OK',['+CPIN: READY']),('OK',['+CPIN: READY']),'9000',('OK',['+CPIN: READY'])])
         e=VirtualCardEngine(s);e.initialize()
         with self.assertRaises(LabError):VpcdAdapter(e)
         a=VpcdAdapter(e,True,True)
@@ -69,6 +69,9 @@ class TransportTests(unittest.TestCase):
         self.assertEqual(a.handle(bytes([0,0xc0,0,0,len(FCP)])),FCP+b'\x90\x00')
         with self.assertRaises(LabError):a.handle(bytes.fromhex('00C0000001'))
         a.handle(b'\x00')
-        with self.assertRaises(LabError):a.handle(b'\x04')
+        # A powered-down card remains physically present; ATR requests from
+        # vpcd polling must not manufacture a removal solely from power state.
+        with self.assertRaises(LabError):a.handle(bytes.fromhex('00A4000C023F00'))
+        self.assertEqual(a.handle(b'\x04'),b'\x3b\x00')
         a.handle(b'\x01');self.assertEqual(a.handle(b'\x04'),b'\x3b\x00')
 if __name__=='__main__':unittest.main()

@@ -22,6 +22,7 @@ class VpcdAdapter:
         self.engine = engine
         self.pending = b''
         self.powered = True
+        self.card_verified = engine.ready
     def handle(self, payload):
         if len(payload) == 1:
             op = payload[0]
@@ -31,13 +32,13 @@ class VpcdAdapter:
             if op in (1,2):
                 self.pending = b''
                 self.engine.initialize()  # SELECT session only, never ATZ/CFUN.
-                self.powered = True
+                self.powered = True; self.card_verified = self.engine.ready
                 return None
             if op == 4:
-                if not self.engine.ready or not self.powered: raise LabError('Card not present or powered.')
+                if not self.card_verified: raise LabError('Card presence never established.')
                 state, lines = self.engine.session._command('AT+CPIN?', 4)
                 if state != 'OK' or lines != ['+CPIN: READY']:
-                    self.engine.ready = False
+                    self.engine.ready = False; self.card_verified = False
                     raise LabError('Current SIM presence not confirmed; remove virtual card.')
                 return TRANSPORT_ATR
             raise LabError('Unsupported vpcd control.')
@@ -63,35 +64,77 @@ class VirtualReaderService:
                  session_reset=False, factory=None, lifetime=300):
         if not consent or not emulated_atr or not session_reset:
             raise LabError('Reader requires local consent and explicit limited emulation acceptance.')
-        if type(vpcd_port) is not int or not 0 <= vpcd_port <= 65535 or not 1 <= lifetime <= 300:
+        if type(vpcd_port) is not int or not 0 <= vpcd_port <= 65534 or not 1 <= lifetime <= 300:
             raise LabError('Invalid local reader session limits.')
         self.port, self.vpcd_port, self.factory, self.lifetime = port, vpcd_port, factory, lifetime
         self.stop_event = threading.Event()
         self.listener = self.peer = self.thread = None
+        self.absent_listener = self.absent_peer = self.absent_thread = None
         self.state = 'STOPPED'
         self.audit = deque(maxlen=128)
         self._lock = threading.Lock()
     def start(self):
         with self._lock:
             if self.thread and self.thread.is_alive(): raise LabError('Reader session already running.')
+            if self.absent_thread and self.absent_thread.is_alive():
+                self.absent_thread.join(1)
+                if self.absent_thread.is_alive(): raise LabError('Previous companion slot is still stopping.')
+            self.peer = self.absent_peer = None
             self.stop_event.clear()
-            wire = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            try:
-                wire.bind(('127.0.0.1',self.vpcd_port)); wire.listen(1); wire.settimeout(.25)
-            except OSError:
-                wire.close(); raise LabError('Local vpcd port unavailable; no other service stopped.') from None
-            self.listener = wire; self.vpcd_port = wire.getsockname()[1]
+            # The stock vpcd IFD advertises two slots and uses base_port+1.
+            # A failed reverse connection in slot 1 can crash that driver. Keep
+            # a real second endpoint that reports NO ATR / NO CARD, not a fake
+            # second SIM. Both listeners are loopback only.
+            requested = self.vpcd_port
+            for attempt in range(8 if requested == 0 else 1):
+                wire = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                absent = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                try:
+                    wire.bind(('127.0.0.1',requested))
+                    base = wire.getsockname()[1]
+                    if base >= 65535: raise OSError('No adjacent slot port.')
+                    absent.bind(('127.0.0.1',base+1))
+                    wire.listen(1); wire.settimeout(.25)
+                    absent.listen(1); absent.settimeout(.25)
+                    break
+                except OSError:
+                    wire.close(); absent.close()
+            else: raise LabError('Local vpcd port pair unavailable; no other service stopped.')
+            self.listener = wire; self.absent_listener = absent; self.vpcd_port = base
             self.state = 'WAITING_PCSC'
+            self.absent_thread = threading.Thread(target=self._absent_slot, daemon=True)
+            self.absent_thread.start()
             self.thread = threading.Thread(target=self._run, daemon=True)
             self.thread.start()
+    def _absent_slot(self):
+        deadline = time.monotonic()+self.lifetime
+        try:
+            while not self.stop_event.is_set() and time.monotonic()<deadline:
+                try: peer,_ = self.absent_listener.accept(); break
+                except socket.timeout: continue
+            else: return
+            self.absent_peer=peer; peer.settimeout(.25)
+            while not self.stop_event.is_set():
+                length=struct.unpack('!H',self._read(peer,2,deadline))[0]
+                if length != 1: raise LabError('No card in companion slot.')
+                payload=self._read(peer,1,min(deadline,time.monotonic()+5))
+                if payload==b'\x04':peer.sendall(b'\x00\x00') # zero-length ATR == absent card
+                elif payload not in (b'\x00',b'\x01',b'\x02'):raise LabError('Unsupported control.')
+        except Exception:pass
+        finally:
+            for wire in (self.absent_peer,self.absent_listener):
+                if wire:
+                    try:wire.close()
+                    except OSError:pass
     def stop(self):
         self.stop_event.set()
-        for wire in (self.peer,self.listener):
+        for wire in (self.peer,self.listener,self.absent_peer,self.absent_listener):
             if wire:
                 try: wire.shutdown(socket.SHUT_RDWR)
                 except OSError: pass
                 wire.close()
         if self.thread and self.thread is not threading.current_thread(): self.thread.join(8)
+        if self.absent_thread and self.absent_thread is not threading.current_thread(): self.absent_thread.join(1)
         if self.thread and self.thread.is_alive():
             self.state = 'STOPPING'
         else: self.state = 'STOPPED'
@@ -137,7 +180,7 @@ class VirtualReaderService:
             self.state = 'TIMEOUT' if getattr(exc,'status',None) in ('TIMEOUT','SESSION_UNCERTAIN') else 'UNAVAILABLE'
             self.audit.append({'operation':'session','outcome':self.state})
         finally:
-            for wire in (self.peer,self.listener):
+            for wire in (self.peer,self.listener,self.absent_peer,self.absent_listener):
                 if wire:
                     try: wire.close()
                     except OSError: pass

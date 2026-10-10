@@ -340,7 +340,7 @@ class Workstation(QMainWindow):
         self.reader_limited=QCheckBox('أوافق على ATR افتراضي وإعادة اختيار جلسة فقط؛ ليست إعادة ضبط كهربائية للشريحة.')
         self.reader_limited.setMinimumHeight(40);v.addWidget(self.reader_limited)
         port_line=QHBoxLayout();port_line.addWidget(label('منفذ vpcd المحلي / Local vpcd port'))
-        self.reader_port=QSpinBox();self.reader_port.setRange(1024,65535);self.reader_port.setValue(35963);port_line.addWidget(self.reader_port);v.addLayout(port_line)
+        self.reader_port=QSpinBox();self.reader_port.setRange(1024,65534);self.reader_port.setValue(35963);port_line.addWidget(self.reader_port);v.addLayout(port_line)
         self._actions(v,[('تشخيص شامل واحد',self.reader_diagnose,'scan',True),('تشغيل القارئ الافتراضي',self.reader_start,'sim',False),
                          ('إيقاف القارئ',self.reader_stop,'back',False),('فحص ظهور PC/SC',self.read_pcsc,'details',False),
                          ('دليل الاستخدام',self.reader_help,'about',False)])

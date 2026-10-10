@@ -27,8 +27,14 @@ class ReaderTests(unittest.TestCase):
         s=self.service();peer=socket.create_connection(('127.0.0.1',s.vpcd_port),timeout=2)
         self.frame(peer,b'\x04');self.receive(peer);peer.close();s.thread.join(1)
         self.assertFalse(s.thread.is_alive())
+        s.vpcd_port=0 # a fresh allocated pair; do not assume OS TIME_WAIT reuse
         s.start();peer=socket.create_connection(('127.0.0.1',s.vpcd_port),timeout=2);self.addCleanup(peer.close)
         self.frame(peer,b'\x04');self.assertEqual(self.receive(peer),b'\x3b\x00')
+    def test_companion_slot_is_absent_not_second_card(self):
+        s=self.service();peer=socket.create_connection(('127.0.0.1',s.vpcd_port+1),timeout=2);self.addCleanup(peer.close)
+        self.frame(peer,b'\x04');self.assertEqual(self.receive(peer),b'')
+        self.assertEqual(s.absent_listener.getsockname()[0],'127.0.0.1')
+        s.stop();self.assertFalse(s.absent_thread.is_alive())
     def test_no_consent_and_occupied_port(self):
         with self.assertRaises(LabError):VirtualReaderService('COM9')
         s=self.service()
