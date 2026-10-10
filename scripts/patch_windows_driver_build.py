@@ -54,7 +54,9 @@ def patch(root):
             break;
         }''')
     s=s.replace('\t\tclose(sock);\n\t}\n\nerr:\n\tfreeaddrinfo(res);', '\t\tclose(sock);\n        sock = INVALID_SOCKET;\n\t}\n\nerr:\n\tif (res) freeaddrinfo(res);')
+    s=s.replace('if (!vicc_connect(ctx, 0, 0) || vicc_getatr(ctx, &atr) <= 0)\n        return 0;\n\n    free(atr);\n\n    return 1;', 'int present = 0;\n    if (vicc_connect(ctx, 0, 0)) present = vicc_getatr(ctx, &atr) > 0;\n    free(atr);\n    return present;')
     p.write_text(s)
+    p=d/'BixVReader.ini';p.write_text(p.read_text().replace('DECIVE_UNIT','DEVICE_UNIT'))
     p=d/'BixVReader.inf';s=p.read_text();s=s.replace('DriverVer= ; is set via stampinf','DriverVer=10/10/2026,0.10.2.1')
     s=s.replace('Virtual Smart Card Architecture','NEXVARY (vsmartcard derivative)').replace('Bix Virtual Smart Card Reader','NEXVARY Virtual SIM Reader (development)')
     p.write_text(s)

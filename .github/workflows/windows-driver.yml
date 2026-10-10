@@ -7,6 +7,7 @@ on:
       - scripts/prepare_windows_vpcd.py
       - scripts/patch_windows_driver_build.py
       - scripts/build_windows_driver.ps1
+      - scripts/check_windows_driver_binary.py
       - .github/workflows/windows-driver.yml
 permissions:
   contents: read
@@ -23,6 +24,7 @@ jobs:
         run: |
           python scripts/prepare_windows_vpcd.py windows-driver-source
           python scripts/patch_windows_driver_build.py windows-driver-source
+      - run: python -m pip install -r requirements-reader.txt
       - name: Build x64 UMDF DLL and unsigned catalog
         shell: pwsh
         run: ./scripts/build_windows_driver.ps1
