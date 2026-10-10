@@ -1,4 +1,4 @@
-NEXVARY USB Studio 0.10.0
+NEXVARY USB Studio 0.10.1
 
 New: Virtual SIM Reader, direct modem CSIM/EF_DIR/USIM discovery, and a real
 loopback vpcd protocol service. No physical OMNIKEY reader is required.

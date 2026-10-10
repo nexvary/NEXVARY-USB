@@ -110,17 +110,23 @@ class CsimUsimBackend(ModemUsimBackend):
             self._authorize()
             if challenge in self._used or self._count >= 32: raise LabError('Duplicate challenge or session limit.')
             self._used.add(challenge); self._count += 1
-            with ATSession(self._port,factory=self._factory) as session:
-                engine = VirtualCardEngine(session)
-                engine.initialize()
-                aids = engine.discover_applications()
-                aid = bytes.fromhex(self._aid)
-                if aid not in aids: raise LabError('Authorized USIM AID not discovered on current card.')
-                engine.select_aid(aid).require_success()
-                self._authorize()
-                # Internal fixed operation; never exposed through Virtual PC/SC.
-                apdu = bytes.fromhex('008800812210'+rand+'10'+autn+'00')
-                reply = engine.transport.exchange(apdu)
-                reply.require_success()
-                self._authorize()
-                return parse_aka(reply.data)
+            try:
+                with ATSession(self._port,factory=self._factory) as session:
+                    engine = VirtualCardEngine(session)
+                    engine.initialize()
+                    aids = engine.discover_applications()
+                    aid = bytes.fromhex(self._aid)
+                    if aid not in aids: raise LabError('Authorized USIM AID not discovered on current card.')
+                    engine.select_aid(aid).require_success()
+                    self._authorize()
+                    # Internal fixed operation; never exposed through Virtual PC/SC.
+                    apdu = bytes.fromhex('008800812210'+rand+'10'+autn+'00')
+                    reply = engine.transport.exchange(apdu)
+                    reply.require_success()
+                    self._authorize()
+                    return parse_aka(reply.data)
+            except Exception:
+                # An uncertain card operation ends this authorization, even if a
+                # caller creates a new request ID or supplies another challenge.
+                self.revoke()
+                raise

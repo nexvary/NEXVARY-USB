@@ -29,3 +29,20 @@ try:
     assert sum(b'00880081' in x for x in fixture.fake.commands)==1
     print('CSIM + real mTLS + WiFi engine PASS; synthetic card/AKA, no carrier proof.')
 finally:bridge.stop();thread.join(2)
+
+# Staged strongSwan card callback contract uses the same *actual* mTLS client.
+# It is not a loaded charon plugin or an IKE/ePDG proof.
+from strongswan_card_adapter import StrongSwanCardAdapter
+backend=SyntheticBackend()
+bridge=PrivateUsimBridge(backend,str(CERTS/'server.pem'),str(CERTS/'server-key.pem'),str(CERTS/'ca.pem'),pin('client'))
+thread=threading.Thread(target=bridge.serve_forever,daemon=True);thread.start()
+try:
+    identity='0123456789012345@nai.epc.mnc001.mcc001.3gppnetwork.org'
+    client=UsbAkaBackend(identity=identity,port=bridge.port,device_key='synthetic-modem',token=TOKEN,server_ca=str(CERTS/'ca.pem'),client_cert=str(CERTS/'client.pem'),client_key=str(CERTS/'client-key.pem'),server_pin=pin('server'))
+    adapter=StrongSwanCardAdapter(client)
+    assert adapter.get_quintuplet(identity,b'R'*16,b'A'*16)==('SUCCESS',bytes.fromhex('34'*16),bytes.fromhex('56'*16),bytes.fromhex('12'*4))
+    assert backend.calls==1
+    assert adapter.get_quintuplet(identity,b'R'*16,b'A'*16)[0]=='FAILED'
+    assert backend.calls==1
+    print('Staged simaka callback + actual mTLS PASS; synthetic AKA; native strongSwan plugin not loaded.')
+finally:bridge.stop();thread.join(2)

@@ -58,3 +58,15 @@ class TLSBridgeTests(unittest.TestCase):
             self.client().authenticate('11'*16,'22'*16)
             with self.assertRaises(LabError):self.client().authenticate('33'*16,'44'*16)
         self.assertEqual(1,self.backend.calls)
+
+    def test_client_duplicate_challenge_refused_before_network(self):
+        client=self.client();client.authenticate('11'*16,'22'*16)
+        with self.assertRaises(LabError):client.authenticate('11'*16,'22'*16)
+        self.assertEqual(self.backend.calls,1)
+    def test_uncertain_dispatch_latches_session_and_blocks_new_challenge(self):
+        from unittest.mock import patch
+        client=self.client()
+        with patch('nexvary_usim_lab.secure_bridge.http.client.HTTPSConnection.request',side_effect=TimeoutError()):
+            with self.assertRaises(LabError):client.authenticate('11'*16,'22'*16)
+        with self.assertRaises(LabError):client.authenticate('33'*16,'44'*16)
+        self.assertEqual(self.backend.calls,0)

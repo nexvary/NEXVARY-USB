@@ -36,3 +36,9 @@ class CsimAkaTests(unittest.TestCase):
         b=self.backend(seconds=-1)
         with self.assertRaises(LabError):b.authenticate(RAND,AUTN)
         self.assertEqual(self.fake.commands,[])
+    def test_failure_revokes_session_for_different_challenge(self):
+        b=self.backend(state='ERROR')
+        with self.assertRaises(LabError):b.authenticate(RAND,AUTN)
+        before=len(self.fake.commands)
+        with self.assertRaises(LabError):b.authenticate('33'*16,'44'*16)
+        self.assertEqual(len(self.fake.commands),before)

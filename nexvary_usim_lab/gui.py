@@ -380,7 +380,7 @@ class Workstation(QMainWindow):
             self.reader_report=report;self.report=report
             if self.selected:self.reports[self.selected.key]=report
             self._populate_readings(report.readings);self._reader_status();self.show('results')
-        self._with_port('تشخيص Direct SIM',lambda p:field_report(p,True),done,assess_sim=True)
+        self._with_port('تشخيص Direct SIM',lambda p:field_report(p,True,service_state=self.virtual_reader.state if self.virtual_reader else 'STOPPED'),done,assess_sim=True)
 
     def reader_start(self):
         if self.virtual_reader and self.virtual_reader.thread and self.virtual_reader.thread.is_alive():

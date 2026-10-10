@@ -13,6 +13,9 @@ from .core import LabError
 from .device_operations import ATSession
 from .virtual_sim import VirtualCardEngine
 
+class ReaderExpired(LabError):
+    pass
+
 TRANSPORT_ATR = bytes.fromhex('3B00')
 
 class VpcdAdapter:
@@ -71,15 +74,19 @@ class VirtualReaderService:
         self.listener = self.peer = self.thread = None
         self.absent_listener = self.absent_peer = self.absent_thread = None
         self.state = 'STOPPED'
+        self._initial_consent = True
         self.audit = deque(maxlen=128)
         self._lock = threading.Lock()
-    def start(self):
+    def start(self, consent=False):
         with self._lock:
+            if not self._initial_consent and consent is not True:
+                raise LabError('Restart requires fresh explicit local consent.')
             if self.thread and self.thread.is_alive(): raise LabError('Reader session already running.')
             if self.absent_thread and self.absent_thread.is_alive():
                 self.absent_thread.join(1)
                 if self.absent_thread.is_alive(): raise LabError('Previous companion slot is still stopping.')
             self.peer = self.absent_peer = None
+            self._initial_consent = False
             self.stop_event.clear()
             # The stock vpcd IFD advertises two slots and uses base_port+1.
             # A failed reverse connection in slot 1 can crash that driver. Keep
@@ -149,7 +156,7 @@ class VirtualReaderService:
         # arrives, a single frame has at most five seconds to complete.
         frame_deadline = deadline
         while len(data) < count and not self.stop_event.is_set():
-            if time.monotonic() >= frame_deadline: raise LabError('vpcd frame/session deadline.')
+            if time.monotonic() >= frame_deadline: raise ReaderExpired('vpcd frame/session deadline.')
             try: chunk = wire.recv(count-len(data))
             except socket.timeout: continue
             if not chunk: raise LabError('vpcd disconnected.')
@@ -169,20 +176,27 @@ class VirtualReaderService:
             with ATSession(self.port,factory=self.factory) as session:
                 engine = VirtualCardEngine(session); engine.initialize()
                 adapter = VpcdAdapter(engine,True,True)
+                if time.monotonic() >= deadline: raise ReaderExpired('Consent expired during verification.')
+                if self.stop_event.is_set(): raise LabError('Reader stopped.')
                 self.state = 'CONNECTED_READ_ONLY'
                 while not self.stop_event.is_set():
                     header = self._read(peer,2,deadline)
                     length = struct.unpack('!H',header)[0]
                     if not 1 <= length <= 261: raise LabError('vpcd frame length rejected.')
                     payload = self._read(peer,length,min(deadline,time.monotonic()+5))
+                    if time.monotonic() >= deadline: raise ReaderExpired('Consent expired before operation.')
                     response = adapter.handle(payload)
+                    # Modem I/O can finish after consent expires or Stop. Never
+                    # publish an ATR or APDU response from that stale operation.
+                    if time.monotonic() >= deadline: raise ReaderExpired('Consent expired during operation.')
+                    if self.stop_event.is_set(): raise LabError('Reader stopped.')
                     self.audit.append({'operation':'control' if length==1 else 'read_only_apdu','outcome':'completed'})
                     if response is not None:
                         peer.sendall(struct.pack('!H',len(response))+response)
         except Exception as exc:
             # Removing the virtual card is more accurate than inventing SW=9000
             # or a card error for a transport failure. No sensitive exceptions.
-            self.state = 'TIMEOUT' if getattr(exc,'status',None) in ('TIMEOUT','SESSION_UNCERTAIN') else 'UNAVAILABLE'
+            self.state = 'EXPIRED' if isinstance(exc,ReaderExpired) else 'TIMEOUT' if getattr(exc,'status',None) in ('TIMEOUT','SESSION_UNCERTAIN') else 'UNAVAILABLE'
             self.audit.append({'operation':'session','outcome':self.state})
         finally:
             for wire in (self.peer,self.listener,self.absent_peer,self.absent_listener):

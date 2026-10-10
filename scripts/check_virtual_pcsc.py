@@ -15,7 +15,8 @@ class SyntheticModem(DemoSerial):
     ANSWERS={'AT+CPIN?':('+CPIN: READY','OK'),
              'AT+CSIM=14,"00A4000C023F00"':response('9000'),
              'AT+CSIM=14,"00A40004022F00"':response(FCP.hex().upper()+'9000'),
-             'AT+CSIM=10,"00B201040B"':response(RECORD.hex().upper()+'9000')}
+             'AT+CSIM=10,"00B201040B"':response(RECORD.hex().upper()+'9000'),
+             'AT+CSIM=24,"00A4040407A0000000871002"':response('9000')}
 
 def main():
     import argparse
@@ -73,6 +74,12 @@ def main():
             assert transmit(bytes([0,0xc0,0,0,len(FCP)]))==FCP+b'\x90\x00'
             assert transmit(bytes.fromhex('00B201040B'))==RECORD+b'\x90\x00'
             check(lib.SCardDisconnect(handle,0));handle=ULong()
+            # Execute the field tool as a genuinely separate native SCard client.
+            field_path=Path(temp,'field-pcsc.json')
+            field=subprocess.run([sys.executable,str(root/'scripts/check_field_pcsc.py'),'--consent','--reader',reader,'--export',str(field_path)],capture_output=True,timeout=20)
+            assert field.returncode==0, 'External field client failed: '+field.stdout.decode(errors='replace')
+            field_evidence=json.loads(field_path.read_text())
+            assert field_evidence['enumeration'] and field_evidence['ef_dir_read']
             # Stop/removal is visible to the external PC/SC consumer.
             service.stop()
             removal_deadline=time.monotonic()+15
@@ -84,7 +91,7 @@ def main():
             assert error & 0xffffffff in (0x8010000c,0x80100017,0x80100069), 'Card removal not observed: '+hex(error & 0xffffffff)
             handle=ULong()
             report={'pcsc_runtime':'actual pcsc-lite + vsmartcard-vpcd + external ctypes client','modem':'synthetic injected serial',
-                    'reader_enumerated':True,'select_mf':True,'ef_dir_fcp':True,'read_record':True,'card_removal':True,
+                    'external_field_client':field_evidence,'reader_enumerated':True,'select_mf':True,'ef_dir_fcp':True,'read_record':True,'card_removal':True,
                     'atr':'explicit emulated transport ATR 3B00','reset':'session reselect only','hardware_verified':False,'aka_verified':False,'calls_verified':False}
             Path('virtual-pcsc-evidence.json').write_text(json.dumps(report,indent=2))
             print(json.dumps(report))

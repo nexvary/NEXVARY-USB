@@ -123,10 +123,13 @@ class VirtualCardEngine:
         self.selected = None
         self.record_length = self.record_count = None
         self.aids = set()
-    def initialize(self):
+        self.directory_fcp = b''
+        self.directory_records = []
+    def initialize(self, sim_ready_checked=False):
         self.ready = False; self.selected = None; self.aids.clear()
         self.record_length = self.record_count = None
-        state, lines = self.session._command('AT+CPIN?', 4)
+        self.directory_fcp = b''; self.directory_records.clear()
+        state, lines = ('OK', ['+CPIN: READY']) if sim_ready_checked else self.session._command('AT+CPIN?', 4)
         if state != 'OK' or lines != ['+CPIN: READY']:
             raise TransportFailure('NEEDS_USER' if state == 'OK' else state, 'SIM READY not established. No PIN/PUK submitted.')
         reply = self.transport.exchange(bytes([0,0xa4,0,self.mf_p2,2,0x3f,0]))
@@ -158,9 +161,13 @@ class VirtualCardEngine:
                 self.record_length = self.record_count = None
                 if reply.sw == b'\x90\x00' and reply.data:
                     self.record_length, self.record_count = directory_metadata(reply.data)
+                    self.directory_fcp = reply.data
+                    self.directory_records.clear()
         elif reply.sw == b'\x90\x00':
             if len(reply.data) != self.record_length: raise LabError('EF_DIR record length mismatch.')
-            self.aids.update(record_aids(reply.data))
+            found = record_aids(reply.data)
+            self.aids.update(found)
+            self.directory_records.append((value[2], tuple(sorted(found))))
         return reply
     def discover_applications(self):
         self.transmit(bytes([0,0xa4,0,self.mf_p2,2,0x3f,0])).require_success()

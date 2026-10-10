@@ -100,6 +100,8 @@ class PrivateUsimBridge:
             timer.cancel();timer=None;tls.settimeout(35)
             try:
                 state,payload=_response_payload(self.backend.authenticate_ami(result['rand'],result['autn']))
+                self.backend._authorize()
+                if self.stop_event.is_set(): raise LabError('Bridge stopped.')
                 data=dict(state=state,payload=base64.b64encode(payload).decode(),request_id=request_id)
                 status='200 OK'
                 self.audit.append({'operation':'usim:authenticate','outcome':state})
@@ -121,6 +123,7 @@ class BridgeUsimClient:
     def __init__(self,port,device_key,token,server_ca,client_cert,client_key,server_pin):
         if type(port) is not int or not 1<=port<=65535 or not isinstance(token,str) or not re.fullmatch(r'[A-Za-z0-9_-]{32,128}',token):
             raise LabError('Invalid private bridge configuration.')
+        self._challenge_lock=threading.Lock();self._challenges=set();self._uncertain=False
         self.port=port;self.key=device_key;self.token=token;self.pin=_pin(server_pin)
         self.context=ssl.create_default_context(cafile=server_ca);self.context.minimum_version=ssl.TLSVersion.TLSv1_2
         self.context.load_cert_chain(client_cert,client_key)
@@ -130,7 +133,12 @@ class BridgeUsimClient:
         import re
         if not all(isinstance(x,str) and re.fullmatch('[0-9A-Fa-f]{32}',x) for x in (rand,autn)):
             raise LabError('Invalid AKA challenge.')
-        request_id=str(uuid.uuid4());connection=None;timer=None
+        challenge=hashlib.sha256(bytes.fromhex(rand+autn)).digest()
+        with self._challenge_lock:
+            if self._uncertain or challenge in self._challenges or len(self._challenges)>=32:
+                raise LabError('Authentication session uncertain, duplicate challenge or session limit; obtain fresh local consent.')
+            self._challenges.add(challenge)
+        request_id=str(uuid.uuid4());connection=None;timer=None;dispatched=False
         try:
             connection=http.client.HTTPSConnection('localhost',self.port,timeout=35,context=self.context)
             connection.connect()
@@ -142,6 +150,7 @@ class BridgeUsimClient:
                 except OSError:pass
             timer=threading.Timer(35,expire);timer.daemon=True;timer.start()
             body=json.dumps(dict(device_key=self.key,request_id=request_id,rand=rand,autn=autn))
+            dispatched=True  # Any request failure from here has an uncertain card outcome.
             connection.request('POST',PATH,body,headers={'Content-Type':'application/json','Authorization':'Bearer '+self.token})
             response=connection.getresponse();raw=response.read(4097)
             if response.status!=200 or response.getheader('Content-Type')!='application/json' or len(raw)>4096:raise LabError('Authorized modem authentication unavailable.')
@@ -152,8 +161,14 @@ class BridgeUsimClient:
             if len(data)>128 or (result['state']=='SUCCESS' and data[:1]!=b'\xdb') or (result['state']=='SYNC_FAILURE' and data[:1]!=b'\xdc'):
                 raise LabError('Malformed private AKA response.')
             return parse_aka(data)
-        except LabError:raise
-        except Exception:raise LabError('Private modem bridge unavailable; check pairing, certificates and consent.') from None
+        except LabError:
+            if dispatched:
+                with self._challenge_lock:self._uncertain=True
+            raise
+        except Exception:
+            if dispatched:
+                with self._challenge_lock:self._uncertain=True
+            raise LabError('Private modem bridge unavailable; check pairing, certificates and consent.') from None
         finally:
             if timer:timer.cancel()
             if connection:connection.close()

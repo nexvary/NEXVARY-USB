@@ -27,8 +27,9 @@ class ReaderTests(unittest.TestCase):
         s=self.service();peer=socket.create_connection(('127.0.0.1',s.vpcd_port),timeout=2)
         self.frame(peer,b'\x04');self.receive(peer);peer.close();s.thread.join(1)
         self.assertFalse(s.thread.is_alive())
+        with self.assertRaises(LabError):s.start()
         s.vpcd_port=0 # a fresh allocated pair; do not assume OS TIME_WAIT reuse
-        s.start();peer=socket.create_connection(('127.0.0.1',s.vpcd_port),timeout=2);self.addCleanup(peer.close)
+        s.start(consent=True);peer=socket.create_connection(('127.0.0.1',s.vpcd_port),timeout=2);self.addCleanup(peer.close)
         self.frame(peer,b'\x04');self.assertEqual(self.receive(peer),b'\x3b\x00')
     def test_companion_slot_is_absent_not_second_card(self):
         s=self.service();peer=socket.create_connection(('127.0.0.1',s.vpcd_port+1),timeout=2);self.addCleanup(peer.close)
@@ -48,3 +49,35 @@ class ReaderTests(unittest.TestCase):
         s.thread.join(1);self.assertEqual(s.state,'UNAVAILABLE')
     def test_consent_expiration_waiting(self):
         s=self.service(lifetime=1);s.thread.join(2);self.assertFalse(s.thread.is_alive());self.assertEqual(s.state,'EXPIRED')
+
+class ExpiryDuringIoTests(unittest.TestCase):
+    service = ReaderTests.service
+    frame = ReaderTests.frame
+    receive = ReaderTests.receive
+    def test_late_atr_after_consent_expiry_is_never_published(self):
+        class SlowVerification(Modem):
+            def write(self,payload):
+                if payload.startswith(b'AT+CSIM='):time.sleep(1.1)
+                super().write(payload)
+        s=self.service(factory=SlowVerification,lifetime=1)
+        peer=socket.create_connection(('127.0.0.1',s.vpcd_port),timeout=3);self.addCleanup(peer.close)
+        self.frame(peer,b'\x04')
+        try:self.assertEqual(peer.recv(3),b'')
+        except ConnectionResetError:pass
+        s.thread.join(2);self.assertEqual(s.state,'EXPIRED')
+        self.assertNotIn('completed',repr(s.audit))
+    def test_late_apdu_after_consent_expiry_is_discarded(self):
+        class SlowRead(Modem):
+            count=0
+            def write(self,payload):
+                if payload.startswith(b'AT+CSIM='):
+                    self.count+=1
+                    if self.count==2:time.sleep(1.1)
+                super().write(payload)
+        s=self.service(factory=SlowRead,lifetime=1)
+        peer=socket.create_connection(('127.0.0.1',s.vpcd_port),timeout=3);self.addCleanup(peer.close)
+        self.frame(peer,b'\x04');self.assertEqual(self.receive(peer),b'\x3b\x00')
+        self.frame(peer,bytes.fromhex('00A4000C023F00'))
+        self.assertEqual(peer.recv(3),b'');s.thread.join(2)
+        self.assertEqual(s.state,'EXPIRED')
+        self.assertFalse(any(x['operation']=='read_only_apdu' for x in s.audit))

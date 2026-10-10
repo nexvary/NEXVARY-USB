@@ -1,4 +1,4 @@
-# Compatibility and evidence ledger — 0.10.0
+# Compatibility and evidence ledger — 0.10.1
 
 Only **one owner-tested physical device** is established here: Huawei K3770,
 firmware 21.023.04.00.11, USB 12D1:14C9. E153 is not a second verified device.
@@ -25,3 +25,5 @@ Transport profiles are explicit, declarative options: `mode=tpdu|apdu` and
 firmware-specific speculative retry**. Current field tool and UI use this
 safe default. Other frame modes are available through the engine API and
 must be validated per firmware before introducing a default override.
+
+0.10.1 introduces richer field collection and an independent native SCard test. No new physical model/firmware evidence was collected; the table remains a ledger of prior observations and declared synthetic tests. Windows source preparation is not driver build/signing/enumeration evidence.
