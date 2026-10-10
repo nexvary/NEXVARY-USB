@@ -38,7 +38,7 @@ class ReaderTests(unittest.TestCase):
         class Locked(Modem):ANSWERS={'AT+CPIN?':('+CPIN: SIM PIN','OK')}
         s=self.service(factory=Locked);peer=socket.create_connection(('127.0.0.1',s.vpcd_port),timeout=2);self.addCleanup(peer.close)
         try:self.frame(peer,b'\x04');self.assertEqual(peer.recv(3),b'')
-        except ConnectionResetError:pass
+        except (ConnectionResetError,ConnectionAbortedError):pass
         s.thread.join(1);self.assertEqual(s.state,'UNAVAILABLE')
     def test_consent_expiration_waiting(self):
         s=self.service(lifetime=1);s.thread.join(2);self.assertFalse(s.thread.is_alive());self.assertEqual(s.state,'EXPIRED')
