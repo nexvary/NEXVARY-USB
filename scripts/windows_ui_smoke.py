@@ -51,6 +51,26 @@ ui.setFixedSize(int(1366/scale),int(768/scale));ui.display_inventory(Inventory('
 ui.connection_label.setText('اختبار واجهة ببيانات اصطناعية — لا نتائج فحص أجهزة فعلية')
 assert len(ui.devices)==2 and len(ui.devices[0].interfaces)==3
 assert ui.grab().save(str(out/f'1366x768-scale{scale:g}-devices-synthetic.png'))
+# Results are a dedicated full-width page; a single image includes every row
+# even when its content exceeds the physical screen height (no manual scrolling).
+from nexvary_usim_lab.core import Report,Reading
+long_report=Report('NEXVARY USB Studio','synthetic','2026-01-01','COM7',True,[
+    Reading('Connection','OK','OK','Synthetic fixture')]+[
+    Reading('SIM applications','TIMEOUT','unavailable','Synthetic repeated result')
+    for _ in range(22)])
+ui.report=long_report
+ui._populate_readings(long_report.readings)
+ui.show('results');app.processEvents()
+assert not ui.side_scroll.isVisible()
+assert ui.results_table.rowCount()==23
+assert ui.grab().save(str(out/f'1366x768-scale{scale:g}-results-page-synthetic.png'))
+from nexvary_usim_lab.result_snapshot import complete_results_image
+image=complete_results_image(long_report)
+assert image.height()>ui.height()
+assert image.save(str(out/f'complete-results-scale{scale:g}-synthetic.png'))
+ui.report=None
+ui._populate_readings([])
+
 # Actual decoded UCS2 fixture displayed in the running UI, explicitly synthetic.
 from nexvary_usim_lab.pdu import deliver
 from nexvary_usim_lab.gui import rows

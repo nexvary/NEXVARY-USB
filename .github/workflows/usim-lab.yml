@@ -66,7 +66,7 @@ jobs:
           path: |
             ui-evidence/
             test-evidence/
-            docs/RELEASE-0.8.3-AR.md
+            docs/RELEASE-0.9.0-AR.md
             docs/WIFI-CALL-CAPABILITY-CONTRACT.md
             nexvary_usim_lab/profiles/K3770.json
           if-no-files-found: error
@@ -104,16 +104,16 @@ jobs:
       - name: Versioned files and SHA256
         shell: pwsh
         run: |
-          Copy-Item dist/NEXVARY-USB-Studio.exe dist/NEXVARY-USB-Studio-v0.8.3.exe
-          Copy-Item installer-output/NEXVARY-USB-Studio-Setup-v0.8.3.exe dist/
-          Get-ChildItem dist/*v0.8.3.exe | ForEach-Object { $h = Get-FileHash $_.FullName -Algorithm SHA256; "$($h.Hash.ToLower())  $($_.Name)" } | Set-Content dist/SHA256SUMS.txt
+          Copy-Item dist/NEXVARY-USB-Studio.exe dist/NEXVARY-USB-Studio-v0.9.0.exe
+          Copy-Item installer-output/NEXVARY-USB-Studio-Setup-v0.9.0.exe dist/
+          Get-ChildItem dist/*v0.9.0.exe | ForEach-Object { $h = Get-FileHash $_.FullName -Algorithm SHA256; "$($h.Hash.ToLower())  $($_.Name)" } | Set-Content dist/SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: NEXVARY-USB-Studio-v0.8.3-Windows
+          name: NEXVARY-USB-Studio-v0.9.0-Windows
           path: |
-            dist/*v0.8.3.exe
+            dist/*v0.9.0.exe
             dist/SHA256SUMS.txt
-            docs/RELEASE-0.8.3-AR.md
+            docs/RELEASE-0.9.0-AR.md
             docs/WIFI-CALL-CAPABILITY-CONTRACT.md
             nexvary_usim_lab/profiles/K3770.json
           if-no-files-found: error

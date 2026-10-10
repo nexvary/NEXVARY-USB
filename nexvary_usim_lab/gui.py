@@ -23,6 +23,7 @@ from .port_discovery import discover_at, PortPreferences
 from .esim_integration import APK_IDENTITY, IntegrationError, parse_activation, qr_png, read_qr, read_recycling_csv
 from . import __version__
 from .presentation import NAMES, outcome, explain
+from .result_snapshot import snapshot_rows, complete_results_image
 from .usage_guide import STEPS, GOALS, connection_ok, explain_report
 
 DARK='#0C1319'; PANEL='#111E29'; FIELD='#0C1319'; SILVER='#C3CBD3'
@@ -133,7 +134,7 @@ class Workstation(QMainWindow):
         body=QHBoxLayout();self.side=QWidget();nav=QVBoxLayout(self.side);nav.setContentsMargins(0,0,8,0)
         self.back_button=button('رجوع',self.back,'back');nav.addWidget(self.back_button)
         self.stack=QStackedWidget()
-        menu=[('guide','ابدأ خطوة بخطوة','scan'),('devices','الأجهزة','devices'),('sim','معلومات الشريحة','sim'),('sms','الرسائل','sms'),
+        menu=[('guide','ابدأ خطوة بخطوة','scan'),('devices','الأجهزة','devices'),('sim','معلومات الشريحة','sim'),('results','النتائج','reports'),('sms','الرسائل','sms'),
               ('network','الشبكة والاتصال','network'),('esim','eSIM Manager','sim'),('reports','التقارير','reports'),('about','النظام والتوافق','about')]
         self.nav_titles={k:title for k,title,_ in menu}
         for key,title,kind in menu:
@@ -144,7 +145,7 @@ class Workstation(QMainWindow):
             scroll.setWidget(page);self.stack.addWidget(scroll);self.pages[key]=(scroll,page,v)
         nav.addStretch();self.side.setFixedWidth(195);self.side_scroll=QScrollArea();self.side_scroll.setWidgetResizable(True);self.side_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff);self.side_scroll.setWidget(self.side);self.side_scroll.setFixedWidth(211);body.addWidget(self.side_scroll);body.addWidget(self.stack,1);outer.addLayout(body,1)
         self.status_label=label('جاهز — لم تُختبر أجهزة في هذه الجلسة','muted');outer.addWidget(self.status_label)
-        for method in (self._build_guide,self._build_devices,self._build_sim,self._build_sms,self._build_network,self._build_esim,self._build_reports,self._build_about):method()
+        for method in (self._build_guide,self._build_devices,self._build_sim,self._build_results,self._build_sms,self._build_network,self._build_esim,self._build_reports,self._build_about):method()
         self.pages['sim'][2].insertWidget(2,label('ابدأ بالفحص الشامل لمعرفة جاهزية الشريحة. قراءة EF-ICCID وفحص التطبيقات اختياريان للمستخدم المتقدم؛ لا يلزم تشغيلهما لقراءة الرسائل.','gold'))
         self.pages['sim'][2].insertWidget(3,button('متابعة مراحل الاستخدام',self._guide_return,'back'))
         self.pages['sms'][2].insertWidget(2,label('1. اضغط قراءة الوارد. 2. للإرسال أدخل الرقم الدولي والنص. 3. راجع الرقم والرسوم في الموافقة. لا تُرسل أي رسالة تلقائيًا.','gold'))
@@ -247,6 +248,8 @@ class Workstation(QMainWindow):
         if key is None:return super().show()
         if remember and self.current_page!=key:self.history.append(self.current_page)
         self.current_page=key;self.stack.setCurrentWidget(self.pages[key][0])
+        # The results page deliberately uses the full window width.
+        self.side_scroll.setVisible(key!='results')
         for k,b in self.nav.items():b.setChecked(k==key)
         self.back_button.setEnabled(bool(self.history))
     def back(self):
@@ -323,6 +326,39 @@ class Workstation(QMainWindow):
         self._actions(v,[('فحص شامل',self.run_probe,'scan',True),('مقارنة منافذ المودم',self.compare_modem_ports,'details',False),('قراءة EF-ICCID',self.check_ef,'sim',False),('اختبار SELECT MF',self.check_apdu,'sim',False),('تطبيقات SIM / USIM',self.check_applications,'sim',False)])
         self.card_label=label('الشريحة لم تُفحص','gold');v.addWidget(self.card_label)
         self.sim_table=table(['الفحص','الحالة','النتيجة والتفسير']);v.addWidget(self.sim_table);v.addStretch()
+
+    def _build_results(self):
+        v=self.pages['results'][2]
+        v.setSpacing(8)
+        title=label('نتائج الفحص — صفحة مستقلة','title');v.addWidget(title)
+        self.results_summary=label('لا يوجد فحص حتى الآن.','gold')
+        v.addWidget(self.results_summary)
+        self._actions(v,[('حفظ صورة كاملة PNG',self.save_complete_results,'reports',True),
+                         ('رجوع إلى معلومات الشريحة',lambda:self.show('sim'),'back',False)])
+        self.results_table=table(['الفحص','الحالة','النتيجة والتفسير'])
+        self.results_table.setWordWrap(False)
+        self.results_table.verticalHeader().setDefaultSectionSize(31)
+        self.results_table.horizontalHeader().setSectionResizeMode(0,QHeaderView.Interactive)
+        self.results_table.horizontalHeader().setSectionResizeMode(1,QHeaderView.Fixed)
+        self.results_table.horizontalHeader().setSectionResizeMode(2,QHeaderView.Stretch)
+        self.results_table.setColumnWidth(0,235)
+        self.results_table.setColumnWidth(1,140)
+        v.addWidget(self.results_table,1)
+        v.addWidget(label('مرر فوق أي صف لقراءة التفاصيل، أو احفظ صورة واحدة تتضمن جميع النتائج دون أي تمرير.','muted'))
+
+    def save_complete_results(self):
+        if self.report is None:
+            QMessageBox.information(self,'لا توجد نتائج','افحص الجهاز أولًا.');return
+        path,_=QFileDialog.getSaveFileName(
+            self,'حفظ صورة النتائج الكاملة','NEXVARY-USB-results.png','PNG (*.png)')
+        if not path:return
+        try:
+            if not path.lower().endswith('.png'):path+='.png'
+            if not complete_results_image(self.report).save(path,'PNG'):
+                raise OSError('Image save failed')
+            self.status_label.setText('تم حفظ جميع نتائج الفحص في صورة واحدة')
+        except (OSError,LabError):
+            QMessageBox.warning(self,'تعذر الحفظ','تعذر حفظ الصورة؛ تحقق من المسار والمساحة المتاحة.')
 
     def _build_sms(self):
         v=self._heading('sms','الرسائل','عرض محلي للرسائل، وإرسال رسالة واحدة بعد تأكيد الرقم والنص. قد تُحتسب رسوم.')
@@ -417,7 +453,9 @@ class Workstation(QMainWindow):
 
     def _build_reports(self):
         v=self._heading('reports','تقرير الجهاز','تقرير أحدث فحص للجهاز المختار. لا يتضمن محتوى الرسائل أو أسرار المصادقة.')
-        self._actions(v,[('تصدير JSON',lambda:self.export_report('json'),'reports',True),('تصدير CSV',lambda:self.export_report('csv'),'reports',False),('تقرير اكتشاف USB',self.export_usb,'devices',False),('دليل قدرات WiFi-Call',self.export_wificall_capabilities,'network',False)])
+        self._actions(v,[('النتائج في صفحة مستقلة',lambda:self.show('results'),'reports',True),('حفظ صورة PNG كاملة',self.save_complete_results,'reports',False),
+                         ('تصدير JSON',lambda:self.export_report('json'),'reports',False),('تصدير CSV',lambda:self.export_report('csv'),'reports',False),
+                         ('تقرير اكتشاف USB',self.export_usb,'devices',False),('دليل قدرات WiFi-Call',self.export_wificall_capabilities,'network',False)])
         v.addWidget(label('دليل WiFi-Call يفصل AT وSIM وAPDU عن AKA والصوت وIMS؛ لا يفعّل المكالمات ولا يتضمن رقم الشريحة.','gold'))
         self.report_table=table(['الفحص','الحالة','النتيجة']);v.addWidget(self.report_table);v.addStretch()
 
@@ -475,6 +513,19 @@ class Workstation(QMainWindow):
     def refresh(self):
         self._job('اكتشاف USB وCOM',detect,self.display_inventory)
     def _populate_readings(self,readings):
+        rows(self.results_table,snapshot_rows(self.report) if self.report else [])
+        if self.report:
+            count=len(self.report.readings)
+            self.results_summary.setText(
+                f'عدد الفحوص: {count}  •  المنفذ: {self.report.device}  •  '
+                +('محاكاة — غير ميدانية' if self.report.simulated else 'فحص جهاز فعلي؛ المصادقة والمكالمات تحقق مستقل')
+            )
+        else:self.results_summary.setText('لا يوجد فحص حتى الآن.')
+        for i in range(self.results_table.rowCount()):
+            row=self.results_table
+            status=row.item(i,1).text().replace('\u2066','').replace('\u2069','')
+            row.item(i,1).setForeground(QColor(GREEN if status=='ناجح' else GOLD if status in ('غير محسوم','غير مختبر','يحتاج تدخل المستخدم') else '#F49BA8'))
+            row.item(i,2).setToolTip(row.item(i,2).text())
         rows(self.sim_table,[(NAMES.get(r.name,r.name),outcome(r),explain(r)) for r in readings])
         rows(self.report_table,[(NAMES.get(r.name,r.name),outcome(r),explain(r)) for r in readings])
         for t in (self.sim_table,self.report_table):
@@ -495,7 +546,7 @@ class Workstation(QMainWindow):
                 self.guide_error.setText('' if connection else 'لم يثبت الاتصال؛ راجع التوصيل والبرنامج الذي قد يستخدم المنفذ ثم أعد الفحص.')
                 self._guide_update()
                 if self.current_page=='guide':self.show('guide')
-            else:self.show('sim')
+            else:self.show('results')
         self._with_port('فحص المودم والشريحة',probe,done,assess_sim=True)
     def compare_modem_ports(self):
         """One user-requested, read-only port comparison per selected device."""
@@ -549,7 +600,8 @@ class Workstation(QMainWindow):
                 self.report=Report('NEXVARY USB Studio',__version__,datetime.now(timezone.utc).isoformat(),self.active_port,False,readings)
                 self.reports[self.selected.key]=self.report
             self._populate_readings(readings)
-            self.card_label.setText('دليل التطبيقات لا يثبت المصادقة؛ راجع النتائج أدناه')
+            self.card_label.setText('دليل التطبيقات لا يثبت المصادقة؛ راجع النتائج في الصفحة المستقلة')
+            self.show('results')
         self._with_port('NEXVARY USIM Core',lambda p:NexvaryUsimCore(p).inspect(consent=True),done,assess_sim=True)
     def _show_reading(self,r):
         self.card_label.setText(outcome(r)+' — '+explain(r))
@@ -566,7 +618,7 @@ class Workstation(QMainWindow):
             from datetime import datetime, timezone
             self.report=Report('NEXVARY USB Studio',__version__,datetime.now(timezone.utc).isoformat(),self.active_port,False,readings)
             self.reports[self.selected.key]=self.report
-        self._populate_readings(readings);self._render_cards();self.show('sim')
+        self._populate_readings(readings);self._render_cards();self.show('results')
     def _session(self,port,fn):
         with ATSession(port) as s:return fn(s)
     def _confirm(self,title,text):

@@ -1,3 +1,14 @@
+# NEXVARY USB Studio 0.9.0 — full-page results and complete PNG export
+
+Every completed SIM/USIM diagnostic now opens a dedicated, full-width **النتائج**
+page automatically (the guided five-step flow keeps its navigation). The page
+shows a compact per-check summary; hovering a row shows its meaning. The button
+**حفظ صورة كاملة PNG** exports all checks, statuses and explanations in one image
+rendered independently of monitor size and viewport scrolling. The PNG masks
+identifiers and is explicitly marked when the report comes from simulation.
+Old JSON/CSV functionality is unchanged. Synthetic UI and image regressions
+run on Windows and Ubuntu at 100%, 125%, and 150% scale.
+
 # NEXVARY USB Studio 0.8.3 — EF_DIR metadata fallback
 
 The read-only CRSM syntax probe now runs before CGLA/CCHO syntax probes so a
