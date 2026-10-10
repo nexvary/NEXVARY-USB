@@ -108,24 +108,29 @@ class VirtualReaderService:
             self.thread.start()
     def _absent_slot(self):
         deadline = time.monotonic()+self.lifetime
+        listener=self.absent_listener
         try:
+            # vpcd ejects a connection on a zero-length ATR, so absence polls
+            # reconnect. Accept each poll while consent remains active.
             while not self.stop_event.is_set() and time.monotonic()<deadline:
-                try: peer,_ = self.absent_listener.accept(); break
+                try: peer,_ = listener.accept()
                 except socket.timeout: continue
-            else: return
-            self.absent_peer=peer; peer.settimeout(.25)
-            while not self.stop_event.is_set():
-                length=struct.unpack('!H',self._read(peer,2,deadline))[0]
-                if length != 1: raise LabError('No card in companion slot.')
-                payload=self._read(peer,1,min(deadline,time.monotonic()+5))
-                if payload==b'\x04':peer.sendall(b'\x00\x00') # zero-length ATR == absent card
-                elif payload not in (b'\x00',b'\x01',b'\x02'):raise LabError('Unsupported control.')
+                self.absent_peer=peer; peer.settimeout(.25)
+                try:
+                    while not self.stop_event.is_set():
+                        length=struct.unpack('!H',self._read(peer,2,deadline))[0]
+                        if length != 1: raise LabError('No card in companion slot.')
+                        payload=self._read(peer,1,min(deadline,time.monotonic()+5))
+                        if payload==b'\x04':
+                            peer.sendall(b'\x00\x00') # actual absence, no synthetic card
+                            break
+                        elif payload not in (b'\x00',b'\x01',b'\x02'):raise LabError('Unsupported control.')
+                except Exception:pass
+                finally:
+                    peer.close()
+                    if self.absent_peer is peer:self.absent_peer=None
         except Exception:pass
-        finally:
-            for wire in (self.absent_peer,self.absent_listener):
-                if wire:
-                    try:wire.close()
-                    except OSError:pass
+        finally:listener.close()
     def stop(self):
         self.stop_event.set()
         for wire in (self.peer,self.listener,self.absent_peer,self.absent_listener):

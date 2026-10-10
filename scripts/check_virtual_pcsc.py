@@ -42,15 +42,20 @@ def main():
         try:
             driver=str(Path(args.driver).resolve())
             Path(temp,'nexvary').write_text(f'FRIENDLYNAME "NEXVARY Virtual SIM Reader (SYNTHETIC TEST)"\nDEVICENAME 127.0.0.1:{service.vpcd_port}\nLIBPATH {driver}\nCHANNELID {service.vpcd_port}\n')
-            daemon=subprocess.Popen([args.pcscd,'--foreground','--disable-polkit','--config',temp],stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
+            daemon_log=open(Path(temp,'pcscd-synthetic.log'),'w+b')
+            daemon=subprocess.Popen([args.pcscd,'--foreground','--disable-polkit','--config',temp],stdout=daemon_log,stderr=subprocess.STDOUT)
             deadline=time.monotonic()+15
             while time.monotonic()<deadline:
                 if daemon.poll() is not None:
-                    log=daemon.communicate(timeout=2)[0].decode('utf-8',errors='replace')
+                    daemon_log.flush();daemon_log.seek(0)
+                    log=daemon_log.read().decode('utf-8',errors='replace')
                     raise RuntimeError('Isolated pcscd could not start (synthetic test): '+log[-4096:])
                 if lib.SCardEstablishContext(2,None,None,ctypes.byref(context))==0:break
                 time.sleep(.1)
-            else:raise RuntimeError('PC/SC context deadline.')
+            else:
+                daemon_log.flush();daemon_log.seek(0)
+                log=daemon_log.read().decode('utf-8',errors='replace')
+                raise RuntimeError('PC/SC context deadline: '+log[-4096:]+'; reader state='+service.state)
             count=ULong()
             check(lib.SCardListReaders(context,None,None,ctypes.byref(count)))
             buffer=ctypes.create_string_buffer(count.value)
