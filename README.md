@@ -182,3 +182,7 @@ than claiming that an entire SIM is permanently unsupported.
 This is a software regression improvement, not verified on a physical K3770 in
 this commit. Hardware-specific access, CCHO/CGLA, USIM AKA and IMS/ePDG remain
 dependent on device, SIM and operator evidence.
+
+## License and Code signing policy
+
+Original project-owned code is [GPL-3.0-or-later](LICENSE); [scope and third-party exceptions](docs/LICENSE-SCOPE.md) apply. See the [Code signing policy](docs/CODE-SIGNING-POLICY.md) for the proposed release controls and privacy statement. SignPath eligibility review is being prepared; no SignPath acceptance, trusted driver signature, or Windows PC/SC installation is claimed.
