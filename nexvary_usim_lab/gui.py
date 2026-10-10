@@ -343,6 +343,7 @@ class Workstation(QMainWindow):
         self.reader_port=QSpinBox();self.reader_port.setRange(1024,65534);self.reader_port.setValue(35963);port_line.addWidget(self.reader_port);v.addLayout(port_line)
         self._actions(v,[('تشخيص شامل واحد',self.reader_diagnose,'scan',True),('تشغيل القارئ الافتراضي',self.reader_start,'sim',False),
                          ('إيقاف القارئ',self.reader_stop,'back',False),('فحص ظهور PC/SC',self.read_pcsc,'details',False),
+                         ('اختبار PC/SC بعميل مستقل',self.reader_external_test,'scan',False),
                          ('دليل الاستخدام',self.reader_help,'about',False)])
         self.reader_hint=label('Linux: ثبّت vpcd ثم اضبط DEVICENAME إلى 127.0.0.1:35963. Windows يحتاج تعريف قارئ افتراضي مناسبًا مثبتًا؛ لا تثبيت أو توقيع تلقائي. نجاح الانتظار لا يثبت اكتشاف PC/SC أو وجود USIM.','muted');v.addWidget(self.reader_hint);v.addStretch()
         def language(index):
@@ -398,6 +399,19 @@ class Workstation(QMainWindow):
     def reader_stop(self):
         if self.virtual_reader:
             self._job('إيقاف Virtual Reader',self.virtual_reader.stop,lambda _:self._reader_status())
+
+    def reader_external_test(self):
+        if not self._confirm('اختبار PC/SC مستقل',
+            'تشغيل عميل مستقل لمدة 30 ثانية لقراءة MF وEF_DIR واختيار USIM فقط؟ '
+            'يختار قارئ NEXVARY الوحيد؛ يحتاج تعريفًا مثبتًا وخدمة القارئ بموافقة سارية. '
+            'لا PIN أو AUTH ولا تثبيت تعريف أو تغيير خدمات.'):
+            return
+        from .pcsc_process import external_report
+        def done(report):
+            self.report=report
+            self._populate_readings(report.readings)
+            self.show('results')
+        self._job('اختبار PC/SC بعملية مستقلة',external_report,done)
 
     def reader_help(self):
         QMessageBox.information(self,'Virtual SIM Reader','1. اختر الفلاشة من الأجهزة.\n2. نفّذ التشخيص الشامل واحفظ PNG أو JSON.\n3. ثبّت vpcd على Linux واضبط وضع الاتصال العكسي على localhost.\n4. وافق على حدود ATR والجلسة ثم شغّل القارئ.\n5. افحص ظهور PC/SC واختبر SELECT من تطبيق خارجي.\nWindows: تعريف القارئ منفصل وغير مضمّن. المصادقة متاحة فقط عبر جسر mTLS بموافقة مستقلة. راجع docs/VIRTUAL-SIM-READER-AR.md.')

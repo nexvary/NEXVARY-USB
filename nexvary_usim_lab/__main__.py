@@ -9,7 +9,8 @@ from .discovery import detect, to_diagnostic_json
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="NEXVARY USB-USIM Lab — read-only local diagnostics")
-    parser.add_argument("action", nargs="?", choices=("gui", "ports", "pcsc", "probe", "demo", "select-mf", "catalog", "diagnose", "bridge", "capabilities", "reader-diagnose", "virtual-reader"), default="gui")
+    parser.add_argument("action", nargs="?", choices=("gui", "ports", "pcsc", "probe", "demo", "select-mf", "catalog", "diagnose", "bridge", "capabilities", "reader-diagnose", "virtual-reader", "pcsc-check"), default="gui")
+    parser.add_argument("--reader", help="Explicit existing PC/SC reader name")
     parser.add_argument("--port", help="Explicit modem serial port, for probe only")
     parser.add_argument("--baudrate", type=int, default=115200)
     parser.add_argument("--export", help="Optional .json or .csv redacted report")
@@ -20,6 +21,12 @@ def main(argv=None):
     parser.add_argument("--allow-session-reset", action="store_true")
     args = parser.parse_args(argv)
     try:
+        if args.action == "pcsc-check":
+            from .field_pcsc import main as check
+            options = (["--consent"] if args.consent else [])
+            if args.reader:options += ["--reader", args.reader]
+            if args.export:options += ["--export", args.export]
+            return check(options)
         if args.action in ("reader-diagnose", "virtual-reader"):
             if not args.consent: parser.error("local reader requires --consent")
             port = args.port

@@ -1,5 +1,5 @@
 """Arabic public result presentation, separate from protocol status codes."""
-NAMES={'Connection':'الاتصال بالمودم','Manufacturer':'الشركة المصنعة','Model':'الموديل',
+NAMES={'PC/SC connection':'اتصال بطاقة PC/SC','PC/SC SELECT MF':'اختيار MF عبر PC/SC','PC/SC EF_DIR':'قراءة EF_DIR عبر PC/SC','PC/SC SELECT USIM':'اختيار USIM عبر PC/SC','PC/SC diagnostic':'تشخيص PC/SC','PC/SC provenance':'مصدر دليل PC/SC','Connection':'الاتصال بالمودم','Manufacturer':'الشركة المصنعة','Model':'الموديل',
        'Firmware':'إصدار البرنامج الداخلي','SIM status':'حالة الشريحة','ICCID':'رقم الشريحة المنقح',
        'Signal':'الإشارة','Registration':'التسجيل في الشبكة','CSIM probe':'فحص صيغة CSIM',
        'CGLA probe':'فحص صيغة CGLA','CCHO probe':'فحص صيغة CCHO','CRSM probe':'فحص صيغة CRSM',
@@ -32,6 +32,15 @@ def outcome(reading):
     return 'غير محسوم'
 
 def explain(reading):
+    if reading.name=='USB VID:PID' and reading.status=='UNVERIFIED':
+        return 'هوية VID/PID غير متاحة من الجرد الحالي؛ لا نستنتجها من اسم المودم.'
+    if reading.name=='PC/SC diagnostic':
+        hints={'8010001D':'خدمة Windows Smart Card أو pcsc-lite غير متاحة؛ لا يعني ذلك فشل المودم.',
+               '8010002E':'لم يُعثر على قارئ PC/SC؛ تشغيل الخدمة وحده لا يثبّت تعريف القارئ.',
+               '8010000C':'لا بطاقة متاحة في القارئ؛ راجع التحقق والموافقة واتصال المودم.'}
+        for code,hint in hints.items():
+            if code in reading.value:return hint
+        return 'تعذر اختبار القارئ المحدد. يلزم قارئ NEXVARY واحد؛ لا نختار بطاقة أخرى تلقائيًا.'
     if reading.name=='SIM applications' and any(term in reading.value.lower()
         for term in ('truncated sim tlv','malformed sim tlv','tlv غير مكتمل')):
         return ('بيانات دليل تطبيقات الشريحة EF_DIR غير مكتملة أو بصيغة غير متوقعة؛ '

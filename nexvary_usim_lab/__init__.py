@@ -1,2 +1,2 @@
 """NEXVARY USB-USIM Lab: safe local modem inventory and diagnostics."""
-__version__ = "0.10.1"
+__version__ = "0.10.2"

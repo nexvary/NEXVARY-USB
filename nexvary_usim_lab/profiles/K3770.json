@@ -23,10 +23,12 @@
     "AT+CSQ",
     "AT+CREG?",
     "AT+CSIM (SELECT MF UICC_NO_FCP)",
-    "AT+CRSM (EF ICCID read on COM5)"
+    "AT+CRSM (EF ICCID read on COM5)",
+    "AT+CSIM (EF_DIR FCP and READ RECORD)",
+    "AT+CSIM (SELECT discovered USIM ADF)"
   ],
   "apdu_result": "SELECT MF accepted SW=9000 using UICC_NO_FCP on COM5 and COM7 (owner field reports v0.6.0); previous 6A86 observation retained",
-  "sim_usim_capability": "SIM READY; USIM AKA unverified",
+  "sim_usim_capability": "Owner screenshot: EF_DIR and USIM ADF selected; AKA unverified",
   "known_limitations": [
     "Exact USB ID does not uniquely identify model",
     "AKA / Arabic SMS / data connection not hardware verified",
@@ -36,9 +38,9 @@
     "Preferred CRSM is used only after exact reported manufacturer/model/firmware and SIM READY match; no fixed COM number"
   ],
   "last_verified_evidence": {
-    "source": "owner-supplied device reports (sanitized fixtures tests/field-evidence)",
-    "date": "2026-10-09",
-    "classification": "physical results supplied by owner; not retested here"
+    "source": "owner-supplied NEXVARY-esults.png screenshot, USB Studio 0.10.1",
+    "date": "2026-10-10",
+    "classification": "owner field report; not independently retested; JSON not supplied"
   },
   "verified_test_evidence": [
     {
@@ -70,6 +72,19 @@
       "ef_iccid": "READABLE via CRSM",
       "aka": "not tested",
       "classification": "Owner-supplied physical-device report; not independently retested"
+    },
+    {
+      "date": "2026-10-10",
+      "software_version": "0.10.1",
+      "port": "COM6 (observation, never fixed configuration)",
+      "source_sha256": "59e89ce4922eae8b247d05b0b466c72418f624fff6f3b46e27369bd079158a0a",
+      "ef_dir": "FCP readable; 33 bytes per record; 5 records read",
+      "usim_aid": "A0000000871002FF49FF018900000100",
+      "usim_adf": "SELECT successful in displayed report; exact ADF SW requires JSON",
+      "usb_identity": "not available in this report; 12D1:14C9 remains historical evidence",
+      "pcsc": "not tested; local service waiting is separate",
+      "aka": "not tested",
+      "classification": "Owner-supplied physical-device screenshot, not synthetic or independently retested"
     }
   ],
   "preferred_iccid_method": "CRSM_EF_2FE2",
@@ -111,7 +126,7 @@
     "real_atr": "unavailable via CSIM",
     "electrical_reset": "unavailable; session-only reselect by explicit consent",
     "physical_pcsc": "unverified",
-    "usim_access": "unresolved; use direct CSIM field tool",
+    "usim_access": "owner-supplied physical-device screenshot 2026-10-10: EF_DIR and USIM SELECT successful",
     "logical_channels": "inconclusive; not required by explicit CSIM AKA path"
   }
 }

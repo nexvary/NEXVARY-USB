@@ -69,7 +69,7 @@ jobs:
           path: |
             ui-evidence/
             test-evidence/
-            docs/RELEASE-0.10.1-AR.md
+            docs/RELEASE-0.10.2-AR.md
             docs/VIRTUAL-SIM-READER-AR.md
             docs/VIRTUAL-SIM-COMPATIBILITY.md
             docs/WIFI-CALL-CAPABILITY-CONTRACT.md
@@ -109,16 +109,16 @@ jobs:
       - name: Versioned files and SHA256
         shell: pwsh
         run: |
-          Copy-Item dist/NEXVARY-USB-Studio.exe dist/NEXVARY-USB-Studio-v0.10.1.exe
-          Copy-Item installer-output/NEXVARY-USB-Studio-Setup-v0.10.1.exe dist/
-          Get-ChildItem dist/*v0.10.1.exe | ForEach-Object { $h = Get-FileHash $_.FullName -Algorithm SHA256; "$($h.Hash.ToLower())  $($_.Name)" } | Set-Content dist/SHA256SUMS.txt
+          Copy-Item dist/NEXVARY-USB-Studio.exe dist/NEXVARY-USB-Studio-v0.10.2.exe
+          Copy-Item installer-output/NEXVARY-USB-Studio-Setup-v0.10.2.exe dist/
+          Get-ChildItem dist/*v0.10.2.exe | ForEach-Object { $h = Get-FileHash $_.FullName -Algorithm SHA256; "$($h.Hash.ToLower())  $($_.Name)" } | Set-Content dist/SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: NEXVARY-USB-Studio-v0.10.1-Windows
+          name: NEXVARY-USB-Studio-v0.10.2-Windows
           path: |
-            dist/*v0.10.1.exe
+            dist/*v0.10.2.exe
             dist/SHA256SUMS.txt
-            docs/RELEASE-0.10.1-AR.md
+            docs/RELEASE-0.10.2-AR.md
             docs/VIRTUAL-SIM-READER-AR.md
             docs/VIRTUAL-SIM-COMPATIBILITY.md
             docs/WIFI-CALL-CAPABILITY-CONTRACT.md
@@ -151,7 +151,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: NEXVARY-Virtual-SIM-Reader-0.10.1-Linux
+          name: NEXVARY-Virtual-SIM-Reader-0.10.2-Linux
           path: |
             dist/*Linux*.tar.gz
             virtual-pcsc-evidence.json

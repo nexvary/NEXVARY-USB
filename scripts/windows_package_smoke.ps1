@@ -39,6 +39,16 @@ if ((Get-TextAssociations) -ne $associations) { throw 'Text file associations ch
 $marker = Get-Content -Raw $env:NEXVARY_PACKAGE_SMOKE | ConvertFrom-Json
 if ($marker.version -ne $version -or $marker.pages.Count -ne 10) { throw 'Packaged version/page marker invalid' }
 if ($marker.esim_contract -ne 'synthetic QR and CSV passed') { throw 'Packaged eSIM contract failed' }
+# Actual frozen native client, without a driver/card on this disposable runner.
+$pcscReport = Join-Path $env:TEMP 'nexvary-frozen-pcsc.json'
+Remove-Item $pcscReport -ErrorAction SilentlyContinue
+$client = Start-Process -FilePath $exe -ArgumentList @('pcsc-check','--consent','--export',"`"$pcscReport`"") -PassThru
+if (!$client.WaitForExit(30000)) { Stop-Process -Id $client.Id; throw 'Frozen PCSC client exceeded deadline' }
+if (!(Test-Path $pcscReport)) { throw 'Frozen PCSC client did not export' }
+$native = Get-Content -Raw $pcscReport | ConvertFrom-Json
+if ($native.schema -ne 'nexvary.field-pcsc.v1' -or $native.runtime -ne 'native WinSCard') { throw 'Frozen native client schema/runtime wrong' }
+if ($native.connected -or $native.usim_selected -or $native.aka_verified) { throw 'No-driver runner unexpectedly claims card access' }
+Remove-Item $pcscReport
 # Upgrade using identical AppId, then uninstall; no outside directory is removed.
 $p = Start-Process -FilePath $installer -ArgumentList $args -Wait -PassThru
 if ($p.ExitCode -ne 0) { throw 'Upgrade failed' }

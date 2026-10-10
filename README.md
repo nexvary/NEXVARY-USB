@@ -1,4 +1,4 @@
-# NEXVARY USB Studio 0.10.1 — Virtual SIM Reader
+# NEXVARY USB Studio 0.10.2 — Virtual SIM Reader
 
 Direct CSIM/TPDU transport, bounded EF_DIR discovery and ADF selection,
 read-only loopback Virtual PC/SC using the real vpcd protocol (Linux reversed
@@ -13,7 +13,7 @@ SMS, network and eSIM functions are preserved.
 
 See [Arabic guide](docs/VIRTUAL-SIM-READER-AR.md),
 [compatibility](docs/VIRTUAL-SIM-COMPATIBILITY.md),
-[delivery limits](docs/RELEASE-0.10.1-AR.md), and
+[delivery limits](docs/RELEASE-0.10.2-AR.md), and
 [source/license review](docs/VIRTUAL-SIM-SOURCES.md).
 
 # NEXVARY USB Studio 0.9.1 — EF_DIR diagnostics and privacy

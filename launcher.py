@@ -4,7 +4,7 @@ if __name__ == '__main__':
     multiprocessing.freeze_support()
     import os,sys
     try:
-        if len(sys.argv)>1 and sys.argv[1] in ('bridge','reader-diagnose','virtual-reader'):
+        if len(sys.argv)>1 and sys.argv[1] in ('bridge','reader-diagnose','virtual-reader','pcsc-check'):
             from nexvary_usim_lab.__main__ import main as cli
             raise SystemExit(cli())
         from nexvary_usim_lab.gui import main
