@@ -140,7 +140,8 @@ jobs:
           sudo rm -f /run/pcscd/pcscd.comm /run/pcscd/pcscd.pid
           python -m pip install -r requirements-reader.txt
       - name: External PC/SC enumeration and APDU transfer with synthetic modem
-        run: bash scripts/linux/build-vpcd-reviewed.sh /tmp/nexvary-vpcd-reviewed
+        run: |
+          bash scripts/linux/build-vpcd-reviewed.sh /tmp/nexvary-vpcd-reviewed
           sudo -E $(which python) scripts/check_virtual_pcsc.py --driver /tmp/nexvary-vpcd-reviewed/libifdvpcd-nexvary-reviewed.so
       - name: Build headless reader source runtime
         run: python scripts/package_linux_reader.py
