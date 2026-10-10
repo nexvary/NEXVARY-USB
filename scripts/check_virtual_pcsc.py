@@ -41,9 +41,10 @@ def main():
     with tempfile.TemporaryDirectory() as temp:
         try:
             driver=str(Path(args.driver).resolve())
-            Path(temp,'nexvary').write_text(f'FRIENDLYNAME "NEXVARY Virtual SIM Reader (SYNTHETIC TEST)"\nDEVICENAME 127.0.0.1:{service.vpcd_port}\nLIBPATH {driver}\nCHANNELID {service.vpcd_port}\n')
+            config_dir=Path(temp,'readers');config_dir.mkdir()
+            Path(config_dir,'nexvary').write_text(f'FRIENDLYNAME "NEXVARY Virtual SIM Reader (SYNTHETIC TEST)"\nDEVICENAME 127.0.0.1:{service.vpcd_port}\nLIBPATH {driver}\nCHANNELID {service.vpcd_port}\n')
             daemon_log=open(Path(temp,'pcscd-synthetic.log'),'w+b')
-            daemon=subprocess.Popen([args.pcscd,'--foreground','--debug','--disable-polkit','--config',temp],stdout=daemon_log,stderr=subprocess.STDOUT)
+            daemon=subprocess.Popen([args.pcscd,'--foreground','--debug','--disable-polkit','--config',str(config_dir)],stdout=daemon_log,stderr=subprocess.STDOUT)
             deadline=time.monotonic()+15
             while time.monotonic()<deadline:
                 if daemon.poll() is not None:
