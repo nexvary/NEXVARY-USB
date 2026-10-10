@@ -19,7 +19,7 @@ $driver = Join-Path ([IO.Path]::GetFullPath($Source)) 'virtualsmartcard\win32\Bi
 & dumpbin /exports "$Output\BixVReader.dll" | Out-File "$Output\PE-EXPORTS.txt"
 & dumpbin /dependents "$Output\BixVReader.dll" | Out-File "$Output\PE-DEPENDENCIES.txt"
 Copy-Item "$driver\BixVReader.ini" $Output
-Copy-Item "$Source\COPYING" "$Output\GPL-3.0.txt"
+Copy-Item "$Source\virtualsmartcard\COPYING" "$Output\GPL-3.0.txt"
 $manifest = @{ schema='nexvary.windows-driver-build.v1'; commit=$env:GITHUB_SHA; architecture='x64'; upstream='8a411e3672e843f9bb9fd750fc8dc56a26bb3bc8'; wdk='10.0.26100.1'; built=$true; signed=$false; installed=$false; pcsc_enumerated=$false; physical_modem_tested=$false; loopback='127.0.0.1:35963'; atr='3B00 transport emulation'; reset='session reselect only' }
 $manifest | ConvertTo-Json | Set-Content "$Output\BUILD-EVIDENCE.json"
 Get-ChildItem $Output -File | Where-Object { $_.Extension -in '.dll','.inf','.cat','.ini' } | ForEach-Object { "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower())  $($_.Name)" } | Set-Content "$Output\SHA256SUMS.txt"
