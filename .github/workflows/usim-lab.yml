@@ -123,7 +123,6 @@ jobs:
           if-no-files-found: error
 
   linux-virtual-reader:
-    needs: test
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -135,7 +134,10 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y pcscd vsmartcard-vpcd
-          sudo systemctl stop pcscd.socket pcscd.service || true
+          sudo systemctl stop pcscd.socket pcscd.service
+          # This is a disposable CI runner, never a user/server preflight.
+          if pgrep -x pcscd; then echo "Existing daemon still active; refusing test"; exit 1; fi
+          sudo rm -f /run/pcscd/pcscd.comm /run/pcscd/pcscd.pid
           python -m pip install -r requirements-reader.txt
       - name: External PC/SC enumeration and APDU transfer with synthetic modem
         run: sudo -E $(which python) scripts/check_virtual_pcsc.py
