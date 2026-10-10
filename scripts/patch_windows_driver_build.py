@@ -26,6 +26,8 @@ def patch(root):
     p=d/'VpcdReader.cpp';s=p.read_text(encoding='utf-8-sig')
     s=s.replace('rpcType=2;','rpcType=2;\n\tctx = NULL;\n\tserverThread = NULL;')
     s=s.replace('port=(short) GetPrivateProfileInt(section,L"TCP_PORT",portBase+instance,L"BixVReader.ini");','port=(short) 35963;')
+    s=s.replace('if (ATR && ATRsize) {', 'if (ATR && ATRsize && ctx && vicc_connect((struct vicc_ctx *)ctx, 0, 0)) {')
+    s=s.replace('if (APDU && APDUlen && Resplen) {', 'if (ctx && cardPresent && APDU && APDUlen && Resp && Resplen) {')
     s=s.replace('if (atr_len > 0) {','if (atr_len == 2 && atr && atr[0] == 0x3B && atr[1] == 0x00 && *ATRsize >= 2) {')
     s=s.replace('} else {\n\t\t\tsignalRemoval();\n\t\t}\n\t}\n\n\treturn r;\n}\n\nvoid VpcdReader::Power', '} else {\n\t\t\tfree(atr);\n\t\t\tsignalRemoval();\n\t\t}\n\t}\n\n\treturn r;\n}\n\nvoid VpcdReader::Power')
     # Card presence is announced only after the expected transport ATR is verified.
@@ -48,6 +50,7 @@ def patch(root):
 '''
     p.write_text(s,encoding='utf-8-sig')
     p=root/'virtualsmartcard/src/vpcd/vpcd.c';s=p.read_text()
+    s=s.replace('if (r < sizeof size)\n        return r;', 'if (r != (ssize_t)sizeof size)\n        return -1;')
     s=s.replace('if (r < 0)\n            return r;', 'if (r <= 0)\n            return -1;',1)
     start=s.index('ssize_t recvall(SOCKET sock, void *buffer, size_t size) {');end=s.index('\nstatic SOCKET opensock',start)
     s=s[:start]+'''ssize_t recvall(SOCKET sock, void *buffer, size_t size) {

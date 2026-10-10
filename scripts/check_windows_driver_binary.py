@@ -83,7 +83,7 @@ def verify(output):
     ctx=native.vicc_init(b'127.0.0.1',server.getsockname()[1]);start=time.monotonic()
     try:
         assert native.vicc_present(ctx)==0
-        elapsed=time.monotonic()-start;assert 2<=elapsed<6
+        elapsed=time.monotonic()-start;assert 2<=elapsed<6, elapsed
     finally:native.vicc_exit(ctx);done.set();t.join(5);server.close()
     result={'schema':'nexvary.windows-driver-native-check.v1','dll_loaded':True,
             'com_class_factory':True,'driver_entry_created':True,
