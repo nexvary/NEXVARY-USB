@@ -34,3 +34,7 @@ requirements needs a separately reviewed native secret container.
 
 No universal Huawei/ZTE AKA support was found or asserted. Firmware/USB mode
 and actual operation evidence must be collected per device.
+
+## قيد vpcd 0.8 المثبت بالاختبار
+
+في Ubuntu 24.04 انهار تعريف 0.8 في vicc_connect/waitforclient بعد رد ATR فارغ في الوضع العكسي. يستخدم اختبار NEXVARY مصدر vsmartcard المثبت أعلاه الذي يتحقق من hostname قبل إعادة الاتصال. سكربت build-vpcd-reviewed.sh يبني المصدر الخارجي محليًا مع الاحتفاظ بترخيصه، دون تثبيت أو تعديل pcscd.

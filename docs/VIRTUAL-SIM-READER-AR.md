@@ -64,7 +64,15 @@ LIBPATH /usr/lib/pcsc/drivers/serial/libifdvpcd.so
 CHANNELID 35963
 ```
 
-تحقق من LIBPATH حسب توزيعتك. لا تستخدم `/dev/null:35963`: وضع vpcd الافتراضي
+تعريف Ubuntu vpcd 0.8 ينهار في وضع الاتصال العكسي عند إعادة الاتصال بموضع فارغ. استخدم المصدر المثبت الذي اختبره CI:
+
+```bash
+sudo apt install git gcc pkg-config libpcsclite-dev pcscd
+bash scripts/linux/build-vpcd-reviewed.sh nexvary-vpcd-dependency
+realpath nexvary-vpcd-dependency/libifdvpcd-nexvary-reviewed.so
+```
+
+ضع المسار المطلق الناتج في LIBPATH. السكربت يبني التعريف فقط ولا يثبته أو يوقف خدمات. يحتفظ بالمصدر والترخيص GPL-3.0-or-later بجانب الملف؛ حزمة NEXVARY لا تضم ثنائي التعريف. لا تستخدم `/dev/null:35963`: وضع vpcd الافتراضي
 يمكن أن يستمع على جميع واجهات الشبكة؛ الإعداد أعلاه يجعل التعريف **عميلًا**
 إلى خدمة NEXVARY التي تستمع حصريًا على loopback. لا تفتح منافذ للإنترنت.
 vpcd القياسي يعرض منفذين للقارئ؛ الخدمة تحجز 35963 و35964 محليًا.
