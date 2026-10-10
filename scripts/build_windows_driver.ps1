@@ -12,12 +12,12 @@ Expand-Archive $archive -DestinationPath $kit -Force
 $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
 & "$vs\Common7\Tools\Launch-VsDevShell.ps1" -Arch amd64 -HostArch amd64 -SkipAutomaticLocation
 $driver = Join-Path ([IO.Path]::GetFullPath($Source)) 'virtualsmartcard\win32\BixVReader'
-& msbuild (Join-Path $driver 'BixVReader.vcxproj') /m /t:Rebuild /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v143 "/p:NexvaryWdkRoot=$kit" "/p:OutDir=$Output\" "/p:IntDir=$Output\obj\" /p:SignMode=Off "/bl:$Output\build.binlog"
+& msbuild (Join-Path $driver 'BixVReader.vcxproj') /m /t:Rebuild /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v143 "/p:NexvaryWdkRoot=$kit" "/p:OutDir=$Output\" "/p:IntDir=$Output\obj\" /p:SignMode=Off /p:TargetName=NEXVARYVirtualSIMReader "/bl:$Output\build.binlog"
 # Generate a catalog, but never generate/import a certificate or auto-sign/install.
 & "$kit\c\bin\10.0.26100.0\x86\Inf2Cat.exe" "/driver:$Output" /os:10_X64 /uselocaltime
-& dumpbin /headers "$Output\BixVReader.dll" | Out-File "$Output\PE-HEADERS.txt"
-& dumpbin /exports "$Output\BixVReader.dll" | Out-File "$Output\PE-EXPORTS.txt"
-& dumpbin /dependents "$Output\BixVReader.dll" | Out-File "$Output\PE-DEPENDENCIES.txt"
+& dumpbin /headers "$Output\NEXVARYVirtualSIMReader.dll" | Out-File "$Output\PE-HEADERS.txt"
+& dumpbin /exports "$Output\NEXVARYVirtualSIMReader.dll" | Out-File "$Output\PE-EXPORTS.txt"
+& dumpbin /dependents "$Output\NEXVARYVirtualSIMReader.dll" | Out-File "$Output\PE-DEPENDENCIES.txt"
 Copy-Item "$driver\BixVReader.ini" $Output
 Copy-Item "$Source\virtualsmartcard\COPYING" "$Output\GPL-3.0.txt"
 $manifest = @{ schema='nexvary.windows-driver-build.v1'; commit=$env:GITHUB_SHA; architecture='x64'; upstream='8a411e3672e843f9bb9fd750fc8dc56a26bb3bc8'; wdk='10.0.26100.1'; built=$true; signed=$false; installed=$false; pcsc_enumerated=$false; physical_modem_tested=$false; loopback='127.0.0.1:35963'; atr='3B00 transport emulation'; reset='session reselect only' }
@@ -32,4 +32,4 @@ Set-Content $wrapper '#include <stdlib.h>
 __declspec(dllexport) void release_response(void *p) { free(p); }'
 & cl /nologo /LD /MD "/Fo:$harness\" "$Source\virtualsmartcard\src\vpcd\vpcd.c" "$Source\virtualsmartcard\src\vpcd\lock.c" $wrapper ws2_32.lib /link "/OUT:$harness\transport.dll" /EXPORT:vicc_init /EXPORT:vicc_exit /EXPORT:vicc_present /EXPORT:vicc_transmit
 & python scripts/check_windows_driver_binary.py $Output
-if ((Get-AuthenticodeSignature "$Output\BixVReader.dll").Status -ne 'NotSigned') { throw 'Unexpected driver signing state' }
+if ((Get-AuthenticodeSignature "$Output\NEXVARYVirtualSIMReader.dll").Status -ne 'NotSigned') { throw 'Unexpected driver signing state' }

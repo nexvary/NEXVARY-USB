@@ -13,6 +13,8 @@ def patch(root):
     for item in project.iter():
         if item.text:
             item.text=item.text.replace('$(WindowsSdkDir)Include\\wdf\\umdf\\$(UMDF_VERSION_MAJOR).$(UMDF_VERSION_MINOR)', '$(NexvaryWdkRoot)\\c\\Include\\wdf\\umdf\\1.9')
+    for item in project.findall('m:ItemGroup/m:None',ns):
+        if item.get('Include') == 'BixVReader.inf': item.set('Include','NEXVARYVirtualSIMReader.inf')
     tree.write(p,encoding='utf-8',xml_declaration=True)
     # The build is a dedicated single loopback reader, not arbitrary INI-selected RPC.
     p=d/'device.cpp';s=p.read_text(encoding='utf-8-sig')
@@ -59,7 +61,18 @@ def patch(root):
     p=d/'BixVReader.ini';p.write_text(p.read_text().replace('DECIVE_UNIT','DEVICE_UNIT'))
     p=d/'BixVReader.inf';s=p.read_text();s=s.replace('DriverVer= ; is set via stampinf','DriverVer=10/10/2026,0.10.2.1')
     s=s.replace('Virtual Smart Card Architecture','NEXVARY (vsmartcard derivative)').replace('Bix Virtual Smart Card Reader','NEXVARY Virtual SIM Reader (development)')
-    p.write_text(s)
+    s=s.replace('BixVReader','NEXVARYVirtualSIMReader').replace('root\\BixVirtualReader','root\\NEXVARYVirtualSIMReader')
+    s=s.replace('A44A2DF4-DCA4-4767-8EC4-86FE611C2EA7','67398A7C-9468-4F55-87BC-918521FA6020')
+    # Only x64 was built; never advertise an unbuilt ARM64 payload.
+    s=s.replace('Standard,NTamd64,NTARM64','Standard,NTamd64')
+    s=s.replace('[Standard.NTARM64]\n%DeviceName%=VReader_Install,root\\NEXVARYVirtualSIMReader\n','')
+    (d/'NEXVARYVirtualSIMReader.inf').write_text(s)
+    p.unlink()
+    for name in ['exports.def','BixVReader.rc','VirtualSCReader.idl']:
+        p=d/name;s=p.read_text(encoding='utf-8-sig')
+        s=s.replace('BixVReader.dll','NEXVARYVirtualSIMReader.dll').replace('"BixVReader"','"NEXVARYVirtualSIMReader"')
+        s=s.replace('A44A2DF4-DCA4-4767-8EC4-86FE611C2EA7','67398A7C-9468-4F55-87BC-918521FA6020')
+        p.write_text(s,encoding='utf-8-sig')
     return d
 if __name__=='__main__':
     a=argparse.ArgumentParser();a.add_argument('source');print(patch(a.parse_args().source))

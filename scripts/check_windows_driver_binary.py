@@ -17,11 +17,11 @@ class Guid(C.Structure):
 def guid(s):return Guid.from_buffer_copy(uuid.UUID(s).bytes_le)
 def verify(output):
     output=Path(output).resolve()
-    dll=C.WinDLL(str(output/'BixVReader.dll'))
+    dll=C.WinDLL(str(output/'NEXVARYVirtualSIMReader.dll'))
     factory=C.c_void_p()
     get=dll.DllGetClassObject
     get.argtypes=[C.POINTER(Guid),C.POINTER(Guid),C.POINTER(C.c_void_p)];get.restype=C.c_int32
-    cls=guid('A44A2DF4-DCA4-4767-8EC4-86FE611C2EA7');iid=guid('00000001-0000-0000-C000-000000000046')
+    cls=guid('67398A7C-9468-4F55-87BC-918521FA6020');iid=guid('00000001-0000-0000-C000-000000000046')
     assert get(C.byref(cls),C.byref(iid),C.byref(factory))==0 and factory.value
     def method(obj,index,restype,*types):
         vt=C.cast(obj,C.POINTER(C.POINTER(C.c_void_p))).contents
@@ -37,11 +37,11 @@ def verify(output):
     native.vicc_transmit.argtypes=[C.c_void_p,C.c_size_t,C.c_void_p,C.POINTER(C.c_void_p)];native.vicc_transmit.restype=C.c_int
     native.release_response.argtypes=[C.c_void_p]
     # Genuine native transport into the current host; card/modem explicitly synthetic.
-    service=VirtualReaderService('SYNTHETIC',0,True,True,True,Modem);service.start()
+    service=VirtualReaderService('COM9',0,True,True,True,Modem);service.start()
     ctx=native.vicc_init(b'127.0.0.1',service.vpcd_port)
     assert ctx
     try:
-        assert native.vicc_present(ctx)==1
+        assert native.vicc_present(ctx)==1, {'host_state':service.state,'audit':list(service.audit)}
         response=C.c_void_p();command=C.create_string_buffer(bytes.fromhex('00A4000C023F00'))
         count=native.vicc_transmit(ctx,7,command,C.byref(response))
         assert count==2 and C.string_at(response,count)==b'\x90\x00'
