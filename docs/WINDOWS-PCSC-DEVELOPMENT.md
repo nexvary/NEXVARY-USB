@@ -11,7 +11,7 @@ Development build on a suitable Windows WDK/UMDF1 toolchain:
 msbuild fresh-driver-source/virtualsmartcard/win32/BixVReader/BixVReader.vcxproj /p:Configuration=Release /p:Platform=x64
 ```
 
-This command is a build recipe, not evidence of a successful build. Current execution host has no WDK/Windows driver runtime or signing certificate. A build must retain original GPL-3.0-or-later terms and copyright; derived driver remains separate from the NEXVARY executable. No built driver is distributed in this release.
+The source-staging command alone does not prove a build. The separate Windows virtual reader driver build workflow now builds an unsigned x64 DLL/INF/CAT and native setup helper on an isolated Windows runner. Original GPL-3.0-or-later terms and copyright are retained for the derived driver. Trusted installation and Windows PC/SC enumeration remain unproved; see WINDOWS-PCSC-DRIVER-AR.md for current evidence and setup gates.
 
 Required gates: source preparation → WDK build and static/lifecycle review → approved signing/package validation → authorized installation → native SCardListReaders → connect/ATR → actual card SELECT/GET RESPONSE/READ RECORD → removal, timeout and restart. Do not install upstream default network-listening configuration. No automatic installation, test-signing, certificate injection, Secure Boot changes or replacing system reader definitions.
 

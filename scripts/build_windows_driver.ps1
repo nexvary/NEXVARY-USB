@@ -33,3 +33,14 @@ __declspec(dllexport) void release_response(void *p) { free(p); }'
 & cl /nologo /LD /MD "/Fo:$harness\" "$Source\virtualsmartcard\src\vpcd\vpcd.c" "$Source\virtualsmartcard\src\vpcd\lock.c" $wrapper ws2_32.lib /link "/OUT:$harness\transport.dll" /EXPORT:vicc_init /EXPORT:vicc_exit /EXPORT:vicc_present /EXPORT:vicc_transmit
 & python scripts/check_windows_driver_binary.py $Output
 if ((Get-AuthenticodeSignature "$Output\NEXVARYVirtualSIMReader.dll").Status -ne 'NotSigned') { throw 'Unexpected driver signing state' }
+
+# Standalone setup uses only Windows APIs; unsigned driver installation is rejected.
+& cl /nologo /std:c++17 /EHsc /W4 /WX /MT /utf-8 /DUNICODE /D_UNICODE /D_WIN32_WINNT=0x0602 /Fo:"$Output\reader_setup.obj" windows/reader_setup.cpp /link "/OUT:$Output\NEXVARY-Reader-Setup.exe" setupapi.lib newdev.lib winscard.lib wintrust.lib crypt32.lib shell32.lib advapi32.lib user32.lib
+& python scripts/check_windows_reader_setup.py $Output
+Copy-Item windows/Check-Reader.cmd,windows/Install-Reader.cmd $Output
+Copy-Item windows/reader_setup.cpp "$Output\reader_setup.cpp"
+
+$manifest.setup_helper_built = $true
+$manifest.trusted_install_tested = $false
+$manifest | ConvertTo-Json | Set-Content "$Output\BUILD-EVIDENCE.json"
+Get-ChildItem $Output -File | Where-Object { $_.Extension -in '.dll','.inf','.cat','.ini','.exe','.cmd' } | ForEach-Object { "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower())  $($_.Name)" } | Set-Content "$Output\SHA256SUMS.txt"
