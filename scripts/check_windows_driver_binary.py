@@ -10,7 +10,8 @@ import uuid
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'tests'))
 from nexvary_usim_lab.virtual_reader import VirtualReaderService
-from test_virtual_reader import Modem
+from test_reader_diagnostics import FieldModem
+from test_virtual_sim import FCP, RECORD, AID
 
 class Guid(C.Structure):
     _fields_=[('a',C.c_uint32),('b',C.c_uint16),('c',C.c_uint16),('d',C.c_ubyte*8)]
@@ -37,15 +38,22 @@ def verify(output):
     native.vicc_transmit.argtypes=[C.c_void_p,C.c_size_t,C.c_void_p,C.POINTER(C.c_void_p)];native.vicc_transmit.restype=C.c_int
     native.release_response.argtypes=[C.c_void_p]
     # Genuine native transport into the current host; card/modem explicitly synthetic.
-    service=VirtualReaderService('COM9',0,True,True,True,Modem);service.start()
+    service=VirtualReaderService('COM9',0,True,True,True,FieldModem);service.start()
     ctx=native.vicc_init(b'127.0.0.1',service.vpcd_port)
     assert ctx
     try:
         assert native.vicc_present(ctx)==1, {'host_state':service.state,'audit':list(service.audit)}
-        response=C.c_void_p();command=C.create_string_buffer(bytes.fromhex('00A4000C023F00'))
-        count=native.vicc_transmit(ctx,7,command,C.byref(response))
-        assert count==2 and C.string_at(response,count)==b'\x90\x00'
-        native.release_response(response)
+        def transmit(data):
+            response=C.c_void_p();command=C.create_string_buffer(data)
+            count=native.vicc_transmit(ctx,len(data),command,C.byref(response))
+            assert count>=2
+            try:return C.string_at(response,count)
+            finally:native.release_response(response)
+        assert transmit(bytes.fromhex('00A4000C023F00'))==b'\x90\x00'
+        assert transmit(bytes.fromhex('00A40004022F0000'))==bytes([0x61,len(FCP)])
+        assert transmit(bytes([0,0xc0,0,0,len(FCP)]))==FCP+b'\x90\x00'
+        assert transmit(bytes.fromhex('00B201040B'))==RECORD+b'\x90\x00'
+        assert transmit(bytes.fromhex('00A40404')+bytes([len(AID)])+AID+b'\x00')==b'\x90\x00'
         service.stop();assert native.vicc_present(ctx)==0
     finally:service.stop();native.vicc_exit(ctx)
     # Connection attempted before listener exists must recover without phantom presence.
@@ -56,7 +64,10 @@ def verify(output):
     def fragmented():
         try:
             with server.accept()[0] as peer:
-                assert peer.recv(3)==b'\x00\x01\x04'
+                request=b''
+                while len(request)<3:
+                    chunk=peer.recv(3-len(request));assert chunk;request+=chunk
+                assert request==b'\x00\x01\x04'
                 for b in b'\x00\x02\x3B\x00':peer.sendall(bytes([b]));time.sleep(.03)
         except BaseException as e:problems.append(str(e))
     t=threading.Thread(target=fragmented);t.start()
@@ -76,7 +87,8 @@ def verify(output):
     finally:native.vicc_exit(ctx);done.set();t.join(5);server.close()
     result={'schema':'nexvary.windows-driver-native-check.v1','dll_loaded':True,
             'com_class_factory':True,'driver_entry_created':True,
-            'native_winsock_transport':True,'select_mf_synthetic_modem':True,
+            'native_winsock_transport':True,'select_mf_synthetic_modem':True,'ef_dir_get_response_synthetic':True,
+            'read_record_synthetic':True,'select_usim_adf_synthetic':True,
             'missing_host_absent':True,'reconnect_after_missing_listener':True,
             'fragmented_atr':True,'silent_host_timeout':True,'timeout_seconds':round(elapsed,2),
             'installed':False,'pcsc_enumerated':False,'hardware_tested':False,

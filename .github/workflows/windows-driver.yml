@@ -33,6 +33,9 @@ jobs:
         shell: pwsh
         run: |
           git -C windows-driver-source diff --binary --output=../driver-output/NEXVARY-PATCH.diff
+          Copy-Item docs/WINDOWS-PCSC-DRIVER-AR.md driver-output/README-AR.md
+          New-Item -ItemType Directory -Force driver-output/build-scripts | Out-Null
+          Copy-Item scripts/*windows_driver*.py,scripts/build_windows_driver.ps1,scripts/prepare_windows_vpcd.py driver-output/build-scripts/
           tar -czf driver-output/vsmartcard-corresponding-source.tar.gz --exclude=.git windows-driver-source
       - uses: actions/upload-artifact@v4
         if: always()

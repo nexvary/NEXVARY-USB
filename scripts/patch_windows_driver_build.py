@@ -31,6 +31,21 @@ def patch(root):
     # Card presence is announced only after the expected transport ATR is verified.
     s=s.replace('if (vicc_present((struct vicc_ctx *) ctx) == 1)', 'BYTE atr[2]; DWORD size=sizeof(atr);\n\tif (QueryATR(atr, &size))')
     s=s.replace('cardPresent = true;\n\t\twhile', 'if (!initProtocols()) { signalRemoval(); return; }\n\t\tcardPresent = true;\n\t\tstate = SCARD_SWALLOWED;\n\t\twhile')
+    start=s.index('void VpcdReader::signalInsertion(void) {')
+    s=s[:start]+'''void VpcdReader::signalInsertion(void) {
+    if (!cardPresent) {
+        if (!initProtocols()) { signalRemoval(); return; }
+        cardPresent = true;
+        state = SCARD_SWALLOWED;
+        SectionLocker lock(device->m_RequestLock);
+        while (!waitInsertIpr.empty()) {
+            CComPtr<IWDFIoRequest> ipr = waitInsertIpr.back();
+            if (ipr->UnmarkCancelable()==S_OK) ipr->CompleteWithInformation(S_OK, 0);
+            waitInsertIpr.pop_back();
+        }
+    }
+}
+'''
     p.write_text(s,encoding='utf-8-sig')
     p=root/'virtualsmartcard/src/vpcd/vpcd.c';s=p.read_text()
     s=s.replace('if (r < 0)\n            return r;', 'if (r <= 0)\n            return -1;',1)
@@ -69,10 +84,10 @@ def patch(root):
     (d/'NEXVARYVirtualSIMReader.inf').write_text(s)
     p.unlink()
     for name in ['exports.def','BixVReader.rc','VirtualSCReader.idl']:
-        p=d/name;s=p.read_text(encoding='utf-8-sig')
-        s=s.replace('BixVReader.dll','NEXVARYVirtualSIMReader.dll').replace('"BixVReader"','"NEXVARYVirtualSIMReader"')
-        s=s.replace('A44A2DF4-DCA4-4767-8EC4-86FE611C2EA7','67398A7C-9468-4F55-87BC-918521FA6020')
-        p.write_text(s,encoding='utf-8-sig')
+        p=d/name;s=p.read_bytes()
+        s=s.replace(b'BixVReader.dll',b'NEXVARYVirtualSIMReader.dll').replace(b'"BixVReader"',b'"NEXVARYVirtualSIMReader"')
+        s=s.replace(b'A44A2DF4-DCA4-4767-8EC4-86FE611C2EA7',b'67398A7C-9468-4F55-87BC-918521FA6020')
+        p.write_bytes(s)
     return d
 if __name__=='__main__':
     a=argparse.ArgumentParser();a.add_argument('source');print(patch(a.parse_args().source))
