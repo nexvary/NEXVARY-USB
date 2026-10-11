@@ -11,6 +11,7 @@ on:
       - scripts/check_windows_reader_setup.py
       - scripts/sign_windows_reader_local.ps1
       - scripts/check_windows_local_reader.ps1
+      - scripts/check_windows_installed_pcsc.py
       - windows/**
       - docs/WINDOWS-PCSC-DRIVER-AR.md
       - .github/workflows/windows-driver.yml
@@ -48,6 +49,7 @@ jobs:
           Copy-Item driver-output local-reader-output -Recurse
           ./scripts/sign_windows_reader_local.ps1 -Output local-reader-output
           Copy-Item scripts/sign_windows_reader_local.ps1,scripts/check_windows_local_reader.ps1 local-reader-output/build-scripts/
+          Copy-Item scripts/check_windows_installed_pcsc.py local-reader-output/build-scripts/
       - name: Test local trust, installation, native enumeration and tamper rejection
         shell: pwsh
         run: ./scripts/check_windows_local_reader.ps1 -Output local-reader-output

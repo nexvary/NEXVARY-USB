@@ -36,12 +36,20 @@ try {
     $evidence.tamper_blocked = $true
     if ($evidence.install_exit_code -ne 0) { throw 'Windows installation rejected; inspect recorded install log' }
     if (!$after.nexvary_reader_enumerated) { throw 'Installation completed but Windows PC/SC reader enumeration is not proved on this runner' }
+    & python scripts/check_windows_installed_pcsc.py $Output
+    if ($LASTEXITCODE) { throw 'External Windows PC/SC synthetic card test failed' }
+    $evidence.apdu_tested = $true
+    $evidence.apdu_provenance = 'synthetic card and modem; external native WinSCard process'
     $evidence.result = 'installed_and_enumerated_without_boot_policy_changes'
 } catch {
     $evidence.result = 'failed'
     $evidence.error = $_.Exception.Message
+    Write-Host $evidence.error
     throw
 } finally {
     foreach ($path in $added) { Remove-Item $path -ErrorAction SilentlyContinue }
     $evidence | ConvertTo-Json -Depth 8 | Set-Content "$Output\LOCAL-CI-EVIDENCE.json" -Encoding UTF8
 }
+# The last native command intentionally returned 20 for the tampering probe.
+# Reset only after every positive and negative assertion has passed.
+$global:LASTEXITCODE = 0

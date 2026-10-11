@@ -19,7 +19,14 @@ try {
         $files[$name] = (Get-FileHash (Join-Path $Output $name) -Algorithm SHA256).Hash
     }
     @{schema='nexvary.local-development-signature.v1';thumbprint=$cert.Thumbprint;files=$files;publicly_trusted=$false;private_key_exported=$false;expires=$cert.NotAfter.ToUniversalTime().ToString('o')} | ConvertTo-Json -Depth 5 | Set-Content "$Output\LOCAL-SIGNATURE.json" -Encoding UTF8
-    Copy-Item windows/Local-Reader-Setup.ps1,windows/Local-Reader-Setup.cmd $Output
+    # Windows PowerShell 5.1 needs a BOM to decode the Arabic UI reliably.
+    Get-Content windows/Local-Reader-Setup.ps1 -Raw | Set-Content "$Output\Local-Reader-Setup.ps1" -Encoding utf8BOM
+    Copy-Item windows/Local-Reader-Setup.cmd $Output
+    $build = Get-Content "$Output\BUILD-EVIDENCE.json" -Raw | ConvertFrom-Json
+    $build.signed = $true
+    $build | Add-Member -NotePropertyName signing_scope -NotePropertyValue 'local-development-only' -Force
+    $build | ConvertTo-Json | Set-Content "$Output\BUILD-EVIDENCE.json" -Encoding UTF8
+    Get-ChildItem $Output -File | Where-Object { $_.Extension -in '.dll','.inf','.cat','.ini','.exe','.cmd','.ps1','.cer' } | ForEach-Object { "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower())  $($_.Name)" } | Set-Content "$Output\SHA256SUMS.txt"
     Copy-Item docs/WINDOWS-LOCAL-READER-AR.md "$Output\LOCAL-README-AR.md"
 } finally {
     Remove-Item "Cert:\CurrentUser\My\$($cert.Thumbprint)" -DeleteKey -ErrorAction Stop
