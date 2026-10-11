@@ -9,6 +9,8 @@ on:
       - scripts/build_windows_driver.ps1
       - scripts/check_windows_driver_binary.py
       - scripts/check_windows_reader_setup.py
+      - scripts/sign_windows_reader_local.ps1
+      - scripts/check_windows_local_reader.ps1
       - windows/**
       - docs/WINDOWS-PCSC-DRIVER-AR.md
       - .github/workflows/windows-driver.yml
@@ -40,9 +42,25 @@ jobs:
           New-Item -ItemType Directory -Force driver-output/build-scripts | Out-Null
           Copy-Item scripts/*windows_driver*.py,scripts/build_windows_driver.ps1,scripts/prepare_windows_vpcd.py driver-output/build-scripts/
           tar -czf driver-output/vsmartcard-corresponding-source.tar.gz --exclude=.git windows-driver-source
+      - name: Sign separate local development package
+        shell: pwsh
+        run: |
+          Copy-Item driver-output local-reader-output -Recurse
+          ./scripts/sign_windows_reader_local.ps1 -Output local-reader-output
+          Copy-Item scripts/sign_windows_reader_local.ps1,scripts/check_windows_local_reader.ps1 local-reader-output/build-scripts/
+      - name: Test local trust, installation, native enumeration and tamper rejection
+        shell: pwsh
+        run: ./scripts/check_windows_local_reader.ps1 -Output local-reader-output
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: NEXVARY-Windows-Reader-Local-Development-x64
+          path: local-reader-output/
+          if-no-files-found: error
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: NEXVARY-Windows-Virtual-Reader-x64-Development
           path: driver-output/
           if-no-files-found: error
+
