@@ -8,6 +8,7 @@ import time
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tests'))
 from nexvary_usim_lab.virtual_reader import VirtualReaderService
+from nexvary_usim_lab import virtual_reader
 from test_reader_diagnostics import FieldModem
 
 def verify(output):
@@ -15,6 +16,16 @@ def verify(output):
     evidence = {'schema': 'nexvary.installed-windows-pcsc.v1',
                 'transport': 'external process using system winscard.dll',
                 'modem': 'synthetic FieldModem', 'physical_card_tested': False}
+    controls = []
+    original = virtual_reader.VpcdAdapter.handle
+    def traced(adapter, payload):
+        controls.append({'control': payload[0] if len(payload) == 1 else None, 'bytes': len(payload)})
+        try:
+            return original(adapter, payload)
+        except Exception as exc:
+            controls[-1]['synthetic_error'] = str(exc)
+            raise
+    virtual_reader.VpcdAdapter.handle = traced
     def client():
         p = subprocess.run([sys.executable, 'scripts/check_field_pcsc.py', '--consent'],
                            capture_output=True, text=True, timeout=40)
@@ -55,6 +66,8 @@ def verify(output):
         evidence['error'] = str(exc)
         raise
     finally:
+        evidence['synthetic_controls'] = controls
+        virtual_reader.VpcdAdapter.handle = original
         service.stop()
         (output / 'INSTALLED-PCSC-CHECKS.json').write_text(json.dumps(evidence, indent=2), encoding='utf-8')
 
