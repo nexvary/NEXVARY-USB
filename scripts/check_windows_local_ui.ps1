@@ -10,11 +10,13 @@ public class ReaderUi {
  [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern IntPtr FindWindow(string cls,string title);
  [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hwnd,out Rect rect);
  [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hwnd,uint msg,IntPtr w,IntPtr l);
+ [DllImport("user32.dll")] public static extern IntPtr GetDlgItem(IntPtr hwnd,int id);
 }
 '@
 $manifest=Get-Content "$Output\LOCAL-SIGNATURE.json" -Raw | ConvertFrom-Json
 $before=@('Root','TrustedPublisher') | ForEach-Object { Test-Path "Cert:\LocalMachine\$_\$($manifest.thumbprint)" }
 $p=Start-Process "$Output\NEXVARY-Local-Reader-Setup.exe" -PassThru
+$null=$p.Handle
 try {
     $window=[IntPtr]::Zero
     for($i=0;$i -lt 50;$i++){
@@ -28,7 +30,7 @@ try {
     $bitmap=New-Object Drawing.Bitmap ($rect.R-$rect.L),($rect.B-$rect.T)
     $g=[Drawing.Graphics]::FromImage($bitmap)
     try {$g.CopyFromScreen($rect.L,$rect.T,0,0,$bitmap.Size);$bitmap.Save("$Output\LOCAL-APPROVAL-UI.png",[Drawing.Imaging.ImageFormat]::Png)} finally {$g.Dispose();$bitmap.Dispose()}
-    [ReaderUi]::SendMessage($window,0x111,[IntPtr]7,[IntPtr]::Zero) | Out-Null
+    [ReaderUi]::SendMessage([ReaderUi]::GetDlgItem($window,7),0xF5,[IntPtr]::Zero,[IntPtr]::Zero) | Out-Null
     if(!$p.WaitForExit(10000) -or $p.ExitCode -ne 0){throw 'Cancel did not exit normally'}
     $after=@('Root','TrustedPublisher') | ForEach-Object { Test-Path "Cert:\LocalMachine\$_\$($manifest.thumbprint)" }
     if((Compare-Object $before $after)){throw 'Cancel changed certificate trust'}
@@ -36,13 +38,14 @@ try {
     # import and the unchanged helper's integrity gates. Driver installation was
     # separately checked above; no real modem/card is involved.
     $p=Start-Process "$Output\NEXVARY-Local-Reader-Setup.exe" -PassThru
+$null=$p.Handle
     for($i=0;$i -lt 50;$i++){
         $window=[ReaderUi]::FindWindow('#32770','NEXVARY — موافقة الثقة المحلية')
         if($window -ne [IntPtr]::Zero){break}
         Start-Sleep -Milliseconds 100
     }
     if($window -eq [IntPtr]::Zero){throw 'Positive approval dialog not observed'}
-    [ReaderUi]::SendMessage($window,0x111,[IntPtr]6,[IntPtr]::Zero) | Out-Null
+    [ReaderUi]::SendMessage([ReaderUi]::GetDlgItem($window,6),0xF5,[IntPtr]::Zero,[IntPtr]::Zero) | Out-Null
     for($i=0;$i -lt 300;$i++){
         $window=[ReaderUi]::FindWindow('#32770','NEXVARY — فحص تعريف القارئ')
         if($window -ne [IntPtr]::Zero){break}
@@ -50,7 +53,7 @@ try {
         Start-Sleep -Milliseconds 100
     }
     if($window -eq [IntPtr]::Zero){throw 'Native install result dialog not observed'}
-    [ReaderUi]::SendMessage($window,0x111,[IntPtr]1,[IntPtr]::Zero) | Out-Null
+    [ReaderUi]::SendMessage($window,0x10,[IntPtr]::Zero,[IntPtr]::Zero) | Out-Null
     $finished=$p.WaitForExit(10000)
     $p.Refresh()
     if(!$finished -or $p.ExitCode -ne 0){throw "Native positive installation failed: finished=$finished exit=$($p.ExitCode) pid=$($p.Id)"}
