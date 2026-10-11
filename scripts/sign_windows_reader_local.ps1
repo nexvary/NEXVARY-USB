@@ -19,6 +19,18 @@ try {
         $files[$name] = (Get-FileHash (Join-Path $Output $name) -Algorithm SHA256).Hash
     }
     @{schema='nexvary.local-development-signature.v1';thumbprint=$cert.Thumbprint;files=$files;publicly_trusted=$false;private_key_exported=$false;expires=$cert.NotAfter.ToUniversalTime().ToString('o')} | ConvertTo-Json -Depth 5 | Set-Content "$Output\LOCAL-SIGNATURE.json" -Encoding UTF8
+    # Native GUI avoids relying on the user's PowerShell execution policy.
+    $header = '#pragma once' + "`nstatic const wchar_t* PinnedFiles[] = {"
+    foreach ($name in @('NEXVARYVirtualSIMReader.dll','NEXVARYVirtualSIMReader.inf','nexvaryvirtualsimreader.cat','NEXVARY-Reader-Setup.exe','NEXVARY-Local-Development.cer')) { $header += 'L"' + $name + '",' }
+    $header += "};`nstatic const wchar_t* PinnedHashes[] = {"
+    foreach ($name in @('NEXVARYVirtualSIMReader.dll','NEXVARYVirtualSIMReader.inf','nexvaryvirtualsimreader.cat','NEXVARY-Reader-Setup.exe','NEXVARY-Local-Development.cer')) { $header += 'L"' + $files[$name] + '",' }
+    $header += '};'
+    Set-Content "$Output\local_certificate_pin.h" $header -Encoding ASCII
+    $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+    & "$vs\Common7\Tools\Launch-VsDevShell.ps1" -Arch amd64 -HostArch amd64 -SkipAutomaticLocation
+    & cl /nologo /std:c++17 /EHsc /W4 /WX /MT /utf-8 /DUNICODE /D_UNICODE /D_WIN32_WINNT=0x0602 "/I$Output" "/Fo:$Output\local_reader_setup.obj" windows/local_reader_setup.cpp /link /SUBSYSTEM:WINDOWS "/OUT:$Output\NEXVARY-Local-Reader-Setup.exe" crypt32.lib shell32.lib user32.lib advapi32.lib
+    if ($LASTEXITCODE) { throw 'Native local-trust UI compilation failed' }
+    Copy-Item windows/local_reader_setup.cpp $Output
     # Windows PowerShell 5.1 needs a BOM to decode the Arabic UI reliably.
     Get-Content windows/Local-Reader-Setup.ps1 -Raw | Set-Content "$Output\Local-Reader-Setup.ps1" -Encoding utf8BOM
     Copy-Item windows/Local-Reader-Setup.cmd $Output

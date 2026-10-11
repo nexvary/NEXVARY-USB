@@ -28,6 +28,8 @@ def verify(output):
                 break
             time.sleep(1)
         evidence['card_read'] = result
+        evidence['host_state'] = service.state
+        evidence['host_audit'] = list(service.audit)
         assert result['connected'] and result['select_mf'] and result['ef_dir_read'] and result['usim_selected'], result
         service.stop()
         for _ in range(12):
