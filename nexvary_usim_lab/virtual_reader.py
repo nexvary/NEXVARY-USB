@@ -65,6 +65,11 @@ class VpcdAdapter:
                 if value[5:5+value[4]] not in self.engine.aids:
                     self.last_policy_denied = True
                     return b'\x6a\x82'  # virtual policy, not a physical card SW
+        # Windows may follow its application probe with a GET DATA identity
+        # request. Identity/subscriber data are outside this reader's scope.
+        if self.engine.ready and len(payload) == 5 and payload[:2] == b'\x00\xca':
+            self.last_policy_denied = True
+            return b'\x6d\x00'  # virtual policy denial; never sent to the card
         reply = self.engine.transmit(payload)
         # PC/SC T=0 SELECT consumers can GET RESPONSE. This caches *actual*
         # modem/card data; no manufactured success or alternate AID redirect.

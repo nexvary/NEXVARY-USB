@@ -19,7 +19,7 @@ def verify(output):
     controls = []
     original = virtual_reader.VpcdAdapter.handle
     def traced(adapter, payload):
-        controls.append({'control': payload[0] if len(payload) == 1 else None, 'bytes': len(payload)})
+        controls.append({'control': payload[0] if len(payload) == 1 else None, 'bytes': len(payload), 'synthetic_header': payload[:4].hex() if len(payload)>1 else None})
         try:
             return original(adapter, payload)
         except Exception as exc:

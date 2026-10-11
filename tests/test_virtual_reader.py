@@ -36,6 +36,8 @@ class ReaderTests(unittest.TestCase):
         self.assertEqual(self.receive(peer),b'\x6a\x82')
         self.assertEqual(len(Spy.sent),before)
         self.assertEqual(s.state,'CONNECTED_READ_ONLY')
+        self.frame(peer,bytes.fromhex('00CA9F7F00'));self.assertEqual(self.receive(peer),b'\x6d\x00')
+        self.assertEqual(len(Spy.sent),before)
         self.frame(peer,bytes.fromhex('00A4000C023F00'));self.assertEqual(self.receive(peer),b'\x90\x00')
         self.assertEqual(len(Spy.sent),before+1)
         self.assertTrue(any(x['outcome']=='policy_denied' for x in s.audit))
