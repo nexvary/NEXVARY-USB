@@ -32,5 +32,31 @@ try {
     if(!$p.WaitForExit(10000) -or $p.ExitCode -ne 0){throw 'Cancel did not exit normally'}
     $after=@('Root','TrustedPublisher') | ForEach-Object { Test-Path "Cert:\LocalMachine\$_\$($manifest.thumbprint)" }
     if((Compare-Object $before $after)){throw 'Cancel changed certificate trust'}
-    @{native_arabic_approval_dialog=$true;cancel_preserved_trust=$true;physical_card_tested=$false} | ConvertTo-Json | Set-Content "$Output\LOCAL-UI-CHECKS.json"
-} finally {if(!$p.HasExited){Stop-Process -Id $p.Id -Force}}
+    # Explicit Yes on this disposable CI runner exercises the native certificate
+    # import and the unchanged helper's integrity gates. Driver installation was
+    # separately checked above; no real modem/card is involved.
+    $p=Start-Process "$Output\NEXVARY-Local-Reader-Setup.exe" -PassThru
+    for($i=0;$i -lt 50;$i++){
+        $window=[ReaderUi]::FindWindow('#32770','NEXVARY — موافقة الثقة المحلية')
+        if($window -ne [IntPtr]::Zero){break}
+        Start-Sleep -Milliseconds 100
+    }
+    if($window -eq [IntPtr]::Zero){throw 'Positive approval dialog not observed'}
+    [ReaderUi]::SendMessage($window,0x111,[IntPtr]6,[IntPtr]::Zero) | Out-Null
+    for($i=0;$i -lt 300;$i++){
+        $window=[ReaderUi]::FindWindow('#32770','NEXVARY — فحص تعريف القارئ')
+        if($window -ne [IntPtr]::Zero){break}
+        if($p.HasExited){throw 'Native positive installation exited before result dialog'}
+        Start-Sleep -Milliseconds 100
+    }
+    if($window -eq [IntPtr]::Zero){throw 'Native install result dialog not observed'}
+    [ReaderUi]::SendMessage($window,0x111,[IntPtr]1,[IntPtr]::Zero) | Out-Null
+    if(!$p.WaitForExit(10000) -or $p.ExitCode -ne 0){throw 'Native positive installation failed'}
+    $state=& "$Output\NEXVARY-Reader-Setup.exe" --check | ConvertFrom-Json
+    if(!$state.trusted_package -or !$state.nexvary_reader_enumerated){throw 'Native trust/reader validation failed'}
+    @{native_arabic_approval_dialog=$true;cancel_preserved_trust=$true;native_trust_install_passed=$true;state=$state;physical_card_tested=$false} | ConvertTo-Json -Depth 6 | Set-Content "$Output\LOCAL-UI-CHECKS.json"
+} finally {
+    if(!$p.HasExited){Stop-Process -Id $p.Id -Force}
+    $stores=@('Root','TrustedPublisher')
+    for($i=0;$i -lt 2;$i++){if(!$before[$i]){Remove-Item "Cert:\LocalMachine\$($stores[$i])\$($manifest.thumbprint)" -ErrorAction SilentlyContinue}}
+}

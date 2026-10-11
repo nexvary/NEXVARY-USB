@@ -11,6 +11,13 @@ from nexvary_usim_lab.virtual_reader import VirtualReaderService
 from nexvary_usim_lab import virtual_reader
 from test_reader_diagnostics import FieldModem
 
+class WindowsFieldModem(FieldModem):
+    # Windows itself requests SELECT MF with P2=00 during card identification.
+    # Explicit synthetic response, not evidence for any physical firmware.
+    ANSWERS = dict(FieldModem.ANSWERS, **{
+        'AT+CSIM=14,"00A40000023F00"': ('+CSIM: 4,"9000"', 'OK'),
+        'AT+CSIM=14,"00A40004023F00"': ('+CSIM: 4,"9000"', 'OK')})
+
 def verify(output):
     output = Path(output)
     evidence = {'schema': 'nexvary.installed-windows-pcsc.v1',
@@ -30,7 +37,7 @@ def verify(output):
         p = subprocess.run([sys.executable, 'scripts/check_field_pcsc.py', '--consent'],
                            capture_output=True, text=True, timeout=40)
         return json.loads(p.stdout)
-    service = VirtualReaderService('COM9', 35963, True, True, True, FieldModem)
+    service = VirtualReaderService('COM9', 35963, True, True, True, WindowsFieldModem)
     try:
         service.start()
         for _ in range(12):
@@ -51,7 +58,7 @@ def verify(output):
         evidence['after_host_stop'] = removed
         assert not removed['connected'], removed
         # A fresh host instance grants a new synthetic local approval.
-        service = VirtualReaderService('COM9', 35963, True, True, True, FieldModem)
+        service = VirtualReaderService('COM9', 35963, True, True, True, WindowsFieldModem)
         service.start()
         for _ in range(12):
             restarted = client()

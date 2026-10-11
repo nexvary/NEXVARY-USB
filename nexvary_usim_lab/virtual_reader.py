@@ -59,10 +59,12 @@ class VpcdAdapter:
         # This reader exposes only AIDs discovered in this local session. Reject
         # a well-formed unknown SELECT locally without ejecting a verified card
         # or forwarding the probe to the modem. AUTH retains fail-closed removal.
-        if self.engine.ready and payload[:3] == b'\x00\xa4\x04':
+        if self.engine.ready and payload[:2] == b'\x00\xa4':
             value, _ = short_apdu(payload)
-            if len(value) >= 12 and value[3] in (0, 4, 12) and 7 <= value[4] <= 16:
-                if value[5:5+value[4]] not in self.engine.aids:
+            if len(value) >= 7 and value[3] in (0, 4, 12):
+                application_denied = value[2] == 4 and 7 <= value[4] <= 16 and value[5:5+value[4]] not in self.engine.aids
+                file_denied = value[2] == 0 and value[4] == 2 and value[5:7] not in (b'\x3f\x00', b'\x2f\x00')
+                if application_denied or file_denied:
                     self.last_policy_denied = True
                     return b'\x6a\x82'  # virtual policy, not a physical card SW
         # Windows may follow its application probe with a GET DATA identity
