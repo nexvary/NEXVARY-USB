@@ -48,6 +48,18 @@ def patch(root):
     }
 }
 '''
+    # OS presence polling, power and APDU IOCTLs run concurrently. Serialize
+    # connect/eject plus complete request/response transactions in the reader;
+    # the C wire lock alone does not protect reconnect/eject or card state.
+    for signature in (
+            'bool VpcdReader::CheckATR() {',
+            'bool VpcdReader::QueryTransmit(BYTE *APDU,int APDUlen,BYTE **Resp,int *Resplen) {',
+            'bool VpcdReader::QueryATR(BYTE *ATR,DWORD *ATRsize,bool) {',
+            'void VpcdReader::Power(DWORD code) {',
+            'void VpcdReader::signalRemoval(void) {',
+            'void VpcdReader::signalInsertion(void) {'):
+        if s.count(signature)!=1:raise ValueError('Unexpected reader method; refusing concurrency patch.')
+        s=s.replace(signature,signature+'\n    SectionLocker lock(ioSection);')
     p.write_text(s,encoding='utf-8-sig')
     p=root/'virtualsmartcard/src/vpcd/vpcd.c';s=p.read_text()
     s=s.replace('if (r < sizeof size)\n        return r;', 'if (r != (ssize_t)sizeof size)\n        return -1;')
@@ -94,3 +106,4 @@ def patch(root):
     return d
 if __name__=='__main__':
     a=argparse.ArgumentParser();a.add_argument('source');print(patch(a.parse_args().source))
+

@@ -66,6 +66,8 @@ def verify(output):
                 break
             time.sleep(1)
         evidence['fresh_consent_restart'] = restarted
+        evidence['restart_host_state'] = service.state
+        evidence['restart_host_audit'] = list(service.audit)
         assert restarted['ef_dir_read'], restarted
         evidence['result'] = 'passed'
     except BaseException as exc:

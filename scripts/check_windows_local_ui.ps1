@@ -51,7 +51,9 @@ try {
     }
     if($window -eq [IntPtr]::Zero){throw 'Native install result dialog not observed'}
     [ReaderUi]::SendMessage($window,0x111,[IntPtr]1,[IntPtr]::Zero) | Out-Null
-    if(!$p.WaitForExit(10000) -or $p.ExitCode -ne 0){throw 'Native positive installation failed'}
+    $finished=$p.WaitForExit(10000)
+    $p.Refresh()
+    if(!$finished -or $p.ExitCode -ne 0){throw "Native positive installation failed: finished=$finished exit=$($p.ExitCode) pid=$($p.Id)"}
     $state=& "$Output\NEXVARY-Reader-Setup.exe" --check | ConvertFrom-Json
     if(!$state.trusted_package -or !$state.nexvary_reader_enumerated){throw 'Native trust/reader validation failed'}
     @{native_arabic_approval_dialog=$true;cancel_preserved_trust=$true;native_trust_install_passed=$true;state=$state;physical_card_tested=$false} | ConvertTo-Json -Depth 6 | Set-Content "$Output\LOCAL-UI-CHECKS.json"
