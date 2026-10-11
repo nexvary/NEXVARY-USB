@@ -12,6 +12,7 @@ on:
       - scripts/sign_windows_reader_local.ps1
       - scripts/check_windows_local_reader.ps1
       - scripts/check_windows_installed_pcsc.py
+      - scripts/check_windows_local_ui.ps1
       - windows/**
       - docs/WINDOWS-PCSC-DRIVER-AR.md
       - .github/workflows/windows-driver.yml
@@ -53,6 +54,10 @@ jobs:
       - name: Test local trust, installation, native enumeration and tamper rejection
         shell: pwsh
         run: ./scripts/check_windows_local_reader.ps1 -Output local-reader-output
+      - name: Native Arabic approval UI and cancel check
+        if: always()
+        shell: pwsh
+        run: ./scripts/check_windows_local_ui.ps1 -Output local-reader-output
       - uses: actions/upload-artifact@v4
         if: always()
         with:

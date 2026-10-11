@@ -11,3 +11,5 @@
 لإلغاء الثقة بعد تجربة ناجحة: افتح إدارة شهادات الكمبيوتر `certlm.msc` واحذف من Root وTrustedPublisher الشهادة ذات البصمة المطابقة للتقرير فقط. لا تحذف شهادات أخرى. لا يُزال التعريف المثبت بمجرد إزالة الشهادة. صلاحية التوقيع المحلي وحدها لا تضمن قبول سياسات Windows المختلفة أو تشغيل UMDF1.
 
 المصادر: https://learn.microsoft.com/windows-hardware/drivers/install/windows-driver-signing-tutorial و https://learn.microsoft.com/windows-hardware/drivers/install/installing-a-test-certificate-on-a-test-computer .
+
+قد يجرب Windows اختيار تطبيق التعريف بالبطاقة تلقائيًا. يرجع القارئ `6A82` محليًا عند SELECT صحيح لتطبيق غير مُتاح ضمن AIDs المكتشفة في الجلسة؛ هذا رفض من سياسة القارئ الافتراضي، وليس نتيجة من Firmware أو الشريحة. لا يمرر الأمر إلى المودم ولا يغلق جلسة البطاقة بسببه. تبقى AUTH وبقية العمليات غير المصرح بها محظورة.

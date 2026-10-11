@@ -23,6 +23,22 @@ class ReaderTests(unittest.TestCase):
         self.frame(peer,b'\x04');self.receive(peer)
         self.frame(peer,bytes.fromhex('0088008101AA'));self.assertEqual(peer.recv(1),b'')
         s.thread.join(1);self.assertEqual(s.state,'UNAVAILABLE')
+    def test_windows_unknown_application_probe_is_local_denial_not_ejection(self):
+        class Spy(Modem):
+            sent=[]
+            def write(self,data):self.sent.append(data);super().write(data)
+        s=self.service(factory=Spy)
+        peer=socket.create_connection(('127.0.0.1',s.vpcd_port),timeout=2);self.addCleanup(peer.close)
+        self.frame(peer,b'\x04');self.assertEqual(self.receive(peer),b'\x3b\x00')
+        before=len(Spy.sent)
+        # Windows card-identifier application: outside exposed USIM/ISIM scope.
+        self.frame(peer,bytes.fromhex('00A404000BA0000003974349445F0100'))
+        self.assertEqual(self.receive(peer),b'\x6a\x82')
+        self.assertEqual(len(Spy.sent),before)
+        self.assertEqual(s.state,'CONNECTED_READ_ONLY')
+        self.frame(peer,bytes.fromhex('00A4000C023F00'));self.assertEqual(self.receive(peer),b'\x90\x00')
+        self.assertEqual(len(Spy.sent),before+1)
+        self.assertTrue(any(x['outcome']=='policy_denied' for x in s.audit))
     def test_reconnect_requires_new_local_start(self):
         s=self.service();peer=socket.create_connection(('127.0.0.1',s.vpcd_port),timeout=2)
         self.frame(peer,b'\x04');self.receive(peer);peer.close();s.thread.join(1)
@@ -81,3 +97,4 @@ class ExpiryDuringIoTests(unittest.TestCase):
         self.assertEqual(peer.recv(3),b'');s.thread.join(2)
         self.assertEqual(s.state,'EXPIRED')
         self.assertFalse(any(x['operation']=='read_only_apdu' for x in s.audit))
+

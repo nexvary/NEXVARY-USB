@@ -11,7 +11,7 @@ import time
 from collections import deque
 from .core import LabError
 from .device_operations import ATSession
-from .virtual_sim import VirtualCardEngine
+from .virtual_sim import VirtualCardEngine, short_apdu
 
 class ReaderExpired(LabError):
     pass
@@ -26,7 +26,9 @@ class VpcdAdapter:
         self.pending = b''
         self.powered = True
         self.card_verified = engine.ready
+        self.last_policy_denied = False
     def handle(self, payload):
+        self.last_policy_denied = False
         if len(payload) == 1:
             op = payload[0]
             if op == 0:
@@ -53,6 +55,16 @@ class VpcdAdapter:
             data, self.pending = self.pending[:count], self.pending[count:]
             return data + (bytes([0x61,len(self.pending)]) if self.pending else b'\x90\x00')
         self.pending = b''
+        # Windows probes applications such as its card identifier automatically.
+        # This reader exposes only AIDs discovered in this local session. Reject
+        # a well-formed unknown SELECT locally without ejecting a verified card
+        # or forwarding the probe to the modem. AUTH retains fail-closed removal.
+        if self.engine.ready and payload[:3] == b'\x00\xa4\x04':
+            value, _ = short_apdu(payload)
+            if len(value) >= 12 and value[3] in (0, 4, 12) and 7 <= value[4] <= 16:
+                if value[5:5+value[4]] not in self.engine.aids:
+                    self.last_policy_denied = True
+                    return b'\x6a\x82'  # virtual policy, not a physical card SW
         reply = self.engine.transmit(payload)
         # PC/SC T=0 SELECT consumers can GET RESPONSE. This caches *actual*
         # modem/card data; no manufactured success or alternate AID redirect.
@@ -190,7 +202,7 @@ class VirtualReaderService:
                     # publish an ATR or APDU response from that stale operation.
                     if time.monotonic() >= deadline: raise ReaderExpired('Consent expired during operation.')
                     if self.stop_event.is_set(): raise LabError('Reader stopped.')
-                    self.audit.append({'operation':'control' if length==1 else 'read_only_apdu','outcome':'completed'})
+                    self.audit.append({'operation':'control' if length==1 else 'read_only_apdu','outcome':'policy_denied' if adapter.last_policy_denied else 'completed'})
                     if response is not None:
                         peer.sendall(struct.pack('!H',len(response))+response)
         except Exception as exc:
@@ -205,3 +217,4 @@ class VirtualReaderService:
                     except OSError: pass
             if self.stop_event.is_set(): self.state = 'STOPPED'
             elif self.state not in ('UNAVAILABLE','TIMEOUT'): self.state = 'EXPIRED'
+
