@@ -1,12 +1,13 @@
 # Compatibility and evidence ledger — 0.10.2
 
-Only **one owner-tested physical device** is established here: Huawei K3770,
+Two owner-tested physical devices are now documented: Huawei K3770 and E160G. Previously, only K3770 was established. K3770,
 firmware 21.023.04.00.11, USB 12D1:14C9. E153 is not a second verified device.
 Port names in retained evidence are historical, never connection constants.
 
 | Model | Firmware | VID:PID | Ports | AT | SIM READY | CSIM | CRSM | SELECT | USIM application | AKA | Virtual PC/SC | Evidence |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
 | Huawei K3770 | 21.023.04.00.11 | 12D1:14C9 | owner reports COM5/COM7 AT; COM6 diagnostics, rediscover each run | observed | observed | MF + EF_DIR + READ RECORD + ADF observed | ICCID read observed on historical COM5 | MF 9000 observed | EF_DIR: 5 × 33 bytes; USIM AID discovered and selected | not tested successfully | runtime implemented, physical modem unverified | owner reports 2026-10-09 + screenshot 2026-10-10; JSON pending |
+| Huawei E160G | 11.604.18.01.00 | 12D1:1001 | COM10 observed; rediscover every run | observed | observed | SELECT MF SW=9000 and EF_DIR records observed | not established | USIM SELECT reported successful | EF_DIR: 5 × 33 bytes; AID discovered | not tested | not tested | owner screenshot 2026-10-17, USB Studio 0.10.2; no independent retest |
 | Huawei E153 | unknown | 12D1:unknown | AT candidate | unknown | unknown | unknown | unknown | unknown | unknown | unknown | conditional | prior label/name ambiguity; not independently proven owner hardware |
 | Huawei E173 | unknown | 12D1:mode-dependent | AT serial candidate | upstream AT profile lead only | unknown | unknown | unknown | unknown | unknown | unknown | conditional | xlab/at, not a NEXVARY field test |
 | Huawei E1750 | unknown | 12D1:mode-dependent | AT serial candidate | upstream documentation lead only | unknown | unknown | unknown | unknown | unknown | unknown | conditional | gsm-gateway AT documentation, no APDU proof |
