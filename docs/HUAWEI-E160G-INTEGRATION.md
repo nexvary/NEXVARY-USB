@@ -16,3 +16,6 @@ E160G support is **provisional** until a real device is recognized and each requ
 
 ## Device evidence requested
 Sanitized Windows Device Manager hardware IDs (VID/PID and interface MI only), enumerated COM port labels, firmware version (if available), and classified read-only AT responses. Do not collect full device identifiers or raw SIM secrets.
+
+## Owner hardware evidence — 2026-10-17
+Owner-supplied screenshot from NEXVARY USB Studio 0.10.2: E160G on COM10, USB VID:PID 12D1:1001, firmware 11.604.18.01.00. SIM ready; SELECT MF returned SW=9000; EF_DIR metadata and five records read; USIM AID discovered and SELECT USIM reported successful. PC/SC transport, AKA, ePDG, IMS and calls remain untested. The screenshot is owner evidence, not independently reproduced by CI. Avoid persisting raw identifiers or authentication material. Next: verify TLV length/record parsing and implement read-only Windows PC/SC transport using a compatible signed user-approved provider; do not silently install drivers.
